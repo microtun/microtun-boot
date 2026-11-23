@@ -1,0 +1,36 @@
+name: Development signing keys
+description: >-
+  Install the microtun-signer CLI on PATH and create microtun boot's development
+  keys in a fresh per-job local store (microtun-signer local mode). The keys
+  are never uploaded and disappear with the runner.
+runs:
+  using: composite
+  steps:
+    - name: Install microtun-signer CLI
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        bin="$RUNNER_TEMP/microtun-signer-bin"
+        mkdir -p "$bin"
+        gh release download --repo microtun/microtun-signer \
+          --pattern microtun-signer-linux-amd64 --dir "$bin"
+        mv "$bin/microtun-signer-linux-amd64" "$bin/microtun-signer"
+        chmod +x "$bin/microtun-signer"
+        "$bin/microtun-signer" --version
+        echo "$bin" >> "$GITHUB_PATH"
+
+    # The key IDs are the defaults in microtun-boot-build (FIRMWARE_DEV_KEY_ID)
+    # and the board tool crates (DEV_KEY). Use these same direct commands locally.
+    - name: Create development keys
+      shell: bash
+      run: |
+        set -euo pipefail
+        export MICROTUN_SIGNER_LOCAL_DIR="$RUNNER_TEMP/microtun-signer-local"
+        echo "MICROTUN_SIGNER_LOCAL_DIR=$MICROTUN_SIGNER_LOCAL_DIR" >> "$GITHUB_ENV"
+        signer="$RUNNER_TEMP/microtun-signer-bin/microtun-signer"
+        "$signer" local init --key-id microtun-boot-local-p256 --algorithm p256
+        "$signer" local init --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --algorithm rsa-pss
+        "$signer" local init --key-id microtun-boot-local-rp2350-rom-secp256k1 --algorithm secp256k1
+        "$signer" local list

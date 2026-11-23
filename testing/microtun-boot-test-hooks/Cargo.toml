@@ -1,0 +1,20 @@
+[package]
+license.workspace = true
+name = "microtun-boot-test-hooks"
+description = "Shared test-hook records for firmware and board tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+microtun-boot-core = { workspace = true }
+
+[features]
+default = []
+# The firmware decoder works without an allocator; host-side test suites need
+# Vec to construct and serialize hook records.
+std = []
+
+[lints]
+workspace = true

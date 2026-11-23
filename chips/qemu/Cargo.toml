@@ -1,0 +1,10 @@
+[package]
+name = "microtun-boot-chip-qemu"
+description = "QEMU MPS2-AN385 machine hardware and microtun boot ABI constants"
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true

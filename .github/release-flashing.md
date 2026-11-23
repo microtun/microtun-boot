@@ -1,0 +1,49 @@
+<!-- microtun-boot-flashing-instructions -->
+## Prerequisites
+
+Install Rust/Cargo and Git. Make sure Cargo-installed binaries are on your `PATH` (normally via `~/.cargo/bin`). On Linux, installing the ESP tool also requires `libudev-dev` and `pkg-config`.
+
+Install the flashing tool for your board directly from **this release's tag**; no repository checkout is needed. The commands in the published release notes already use the correct tag.
+
+**ESP32-C3 SuperMini:**
+
+```sh
+cargo install --locked --git https://github.com/microtun/microtun-boot.git \
+  --tag "@MICROTUN_BOOT_TAG@" microtun-boot-tools-esp
+```
+
+**RP2350 Pico 2:**
+
+```sh
+cargo install --locked --git https://github.com/microtun/microtun-boot.git \
+  --tag "@MICROTUN_BOOT_TAG@" microtun-boot-tools-rp
+```
+
+You only need to install the tool for the board you want to flash.
+
+## Flash the bootloaders
+
+Download the attached `.bin` files. Choose `dev` or `release` to match the device's secure-boot key (**key provisioning is irreversible**).
+
+**ESP32-C3 SuperMini** — Connect the board over USB-Serial-JTAG and set your serial port:
+
+```sh
+PROFILE=dev  # or release
+export ESPPORT=/dev/ttyACM0   # change to your serial port
+export MICROTUN_BOOT_OTP_BURN=YES
+microtun-boot-tools-esp flash-bootloader --signed-bin \
+  "esp32c3-supermini-${PROFILE}-boot-chain.sbv2.bin"
+```
+
+The complete signed image (ESP-IDF second stage, partition table, and signed microtun boot) is verified and written at `0x0`. It does not re-sign or rebuild anything.
+
+**RP2350 Pico 2** — Connect an SWD probe:
+
+```sh
+PROFILE=dev  # or release
+export MICROTUN_BOOT_OTP_BURN=YES
+microtun-boot-tools-rp flash-bootloader --signed-bin \
+  "rp2350-pico2-${PROFILE}-microtun-boot.signed.bin"
+```
+
+The ROM-sealed binary is verified and downloaded at `0x10000000`, then the board is reset, without generating a new signature. `PROBE_RS_PROBE`, `PROBE_RS_SPEED_KHZ`, and `PROBE_RS_CHIP` work as usual.

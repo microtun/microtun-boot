@@ -1,0 +1,113 @@
+[package]
+license.workspace = true
+name = "microtun-boot-hil"
+description = "Hardware and QEMU tests for microtun boot bootloader upgrades"
+autotests = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Shared harness (nested cargo builds of the board binaries, imgtool signing,
+# 4 MiB flash composition over microtun-boot-core, the RP2350 LZ4 restore fixture
+# protocol, ESP32-C3 Rust espflash fixture flashing, the reset worker and console
+# capture), one module per board
+# (console, optional RP2350 probe attach, executable format, layout) and the scenarios in
+# `tests/`: a short physical-board smoke binary and detailed QEMU regressions.
+#
+# Select a suite (`smoke`, `regression`, or `security-counter`) and exactly one target feature:
+#
+#   cargo test -p microtun-boot-hil --features qemu,regression
+#   cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
+#   cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
+#   cargo test -p microtun-boot-hil --features esp32c3-supermini,security-counter
+#   cargo test -p microtun-boot-hil --features qemu,security-counter
+# Initialize keys directly with microtun-signer local init (see SIGNING.md).
+# RP2350 defaults to the local key microtun-boot-local-rp2350-rom-secp256k1; set
+# RP2350_SECURE_BOOT_KEY_ID to another local key ID to override.
+
+[features]
+# Suite selectors; target/back-end selection stays separate.
+smoke = []
+regression = ["security-counter"]
+# Opt-in anti-rollback suite: permanently advances OTP/eFuse on physical boards.
+security-counter = []
+esp32c3-supermini = ["dep:esp-idf-part", "dep:espflash", "dep:probe-rs", "dep:probe-rs-espressif", "dep:microtun-boot-layout-esp32c3-supermini", "dep:microtun-boot-tools-esp"]
+rp2350-pico2 = ["dep:probe-rs", "dep:microtun-boot-layout-rp2350-pico2", "dep:lz4_flex", "dep:microtun-boot-tools-rp"]
+qemu = ["dep:serde_json", "dep:microtun-boot-layout-qemu", "dep:microtun-boot-tools-qemu"]
+
+[dependencies]
+# Host tools: shared MCUboot signing always; each board's tool crate only with its feature.
+microtun-boot-build = { workspace = true, features = ["tools"] }
+microtun-boot-tools-esp = { workspace = true, optional = true }
+microtun-boot-tools-rp = { workspace = true, optional = true }
+microtun-boot-tools-qemu = { workspace = true, optional = true }
+microtun-boot-core = { workspace = true, features = ["uuid"] }
+microtun-boot-test-hooks = { workspace = true, features = ["std"] }
+embedded-storage = { workspace = true }
+serialport = { workspace = true }
+pem = { workspace = true }
+sha2 = { workspace = true, features = ["std"] }
+tempfile = { workspace = true }
+lz4_flex = { workspace = true, optional = true }
+probe-rs = { workspace = true, optional = true }
+probe-rs-espressif = { workspace = true, optional = true }
+serde_json = { version = "1", optional = true }
+# Board layout crates: chip facts plus each test board's own values.
+microtun-boot-layout-qemu = { path = "../../boards/qemu/layout", optional = true }
+microtun-boot-layout-esp32c3-supermini = { path = "../../boards/esp32c3-supermini/layout", optional = true }
+microtun-boot-layout-rp2350-pico2 = { path = "../../boards/rp2350-pico2/layout", optional = true }
+# ESP32-C3: upstream ESP image conversion, SBv2 secure padding, and ROM
+# flashing in a supervised Rust worker; HIL uses the board's own
+# Rust boot-stage signer instead of esptool/espsecure.
+espflash = { workspace = true, optional = true }
+esp-idf-part = { version = "0.6", optional = true }
+
+# One worker dispatches to the ESP32-C3 ROM or RP2350 SWD transport.
+# It is always built beside HIL integration tests; only its enabled board
+# subcommands are compiled in.
+[[bin]]
+name = "microtun-boot-flash"
+path = "src/bin/microtun-boot-flash.rs"
+test = false
+bench = false
+
+# The smoke suite contains the short physical checks.
+[[test]]
+name = "smoke"
+path = "tests/smoke.rs"
+required-features = ["smoke"]
+
+# Built and run only with the opt-in feature; physical boards advance OTP/eFuse.
+[[test]]
+name = "security_counter"
+path = "tests/security_counter.rs"
+required-features = ["security-counter"]
+
+[[test]]
+name = "swap"
+path = "tests/swap.rs"
+required-features = ["regression", "qemu"]
+
+[[test]]
+name = "overwrite"
+path = "tests/overwrite.rs"
+required-features = ["regression", "qemu"]
+
+[[test]]
+name = "direct_xip"
+path = "tests/direct_xip.rs"
+required-features = ["regression", "qemu"]
+
+[[test]]
+name = "direct_xip_no_revert"
+path = "tests/direct_xip_no_revert.rs"
+required-features = ["regression", "qemu"]
+
+[[test]]
+name = "safety"
+path = "tests/safety.rs"
+required-features = ["regression", "qemu"]
+
+[lints]
+workspace = true

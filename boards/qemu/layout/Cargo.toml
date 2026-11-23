@@ -1,0 +1,13 @@
+[package]
+license.workspace = true
+name = "microtun-boot-layout-qemu"
+description = "QEMU MPS2-AN385 board flash map and machine constants"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+microtun-boot-core = { workspace = true }
+microtun-boot-chip-qemu = { workspace = true }
+

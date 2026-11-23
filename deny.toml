@@ -1,0 +1,17 @@
+# Policy for the root workspace and the two standalone embedded workspaces.
+# We enforce vulnerability advisories and dependency provenance here. A license
+# allowlist is deliberately not enabled: microtun boot is dual-licensed under a
+# non-open-source license for noncommercial use (see README.md).
+
+[advisories]
+# Vulnerability advisories fail the check; unmaintained transitive dependencies
+# are reported without failing unless the workspace directly depends on them.
+unmaintained = "workspace"
+ignore = []
+
+[sources]
+# Every registry dependency in the checked-in lockfiles comes from crates.io.
+# New git sources or registries must be reviewed before being admitted.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

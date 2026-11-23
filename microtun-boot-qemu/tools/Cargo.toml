@@ -1,0 +1,28 @@
+[package]
+name = "microtun-boot-tools-qemu"
+description = "microtun boot QEMU (MPS2 AN385) host tooling: ELF export, signing, virtual NOR flashing and emulator runner"
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = ["cli"]
+# The `microtun-boot-tools-qemu` binary.
+cli = ["dep:clap", "microtun-boot-build/cli"]
+
+[[bin]]
+name = "microtun-boot-tools-qemu"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, optional = true }
+microtun-boot-build = { workspace = true, features = ["tools"] }
+microtun-boot-layout-qemu = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

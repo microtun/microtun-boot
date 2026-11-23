@@ -1,0 +1,121 @@
+[workspace]
+resolver = "3"
+members = [
+    "microtun-boot-build",
+    "microtun-boot-core",
+    "microtun-boot-esp",
+    "microtun-boot-rp",
+    "microtun-boot-qemu",
+    "microtun-boot-esp/tools",
+    "microtun-boot-rp/tools",
+    "microtun-boot-qemu/tools",
+    "chips/*",
+    "boards/esp32c3-supermini/microtun-boot",
+    "boards/esp32c3-supermini/firmware",
+    "boards/esp32c3-supermini/layout",
+    "boards/rp2350-pico2/microtun-boot",
+    "boards/rp2350-pico2/firmware",
+    "boards/rp2350-pico2/layout",
+    "boards/qemu/microtun-boot",
+    "boards/qemu/firmware",
+    "boards/qemu/layout",
+    "testing/microtun-boot-hil",
+    "testing/microtun-boot-test-hooks",
+    "examples/esp32c3-supermini-blinky",
+    "examples/rp2350-pico2-blinky",
+]
+# Root commands select only host-side packages; embedded board builds must
+# select packages explicitly from the corresponding boards/<board> directory.
+# `cargo test` also skips the HIL harness (some scenarios need hardware).
+default-members = [
+    "microtun-boot-build",
+    "microtun-boot-core",
+    "microtun-boot-esp/tools",
+    "microtun-boot-rp/tools",
+    "microtun-boot-qemu/tools",
+    "testing/microtun-boot-test-hooks",
+]
+# Examples are workspace members but deliberately not default members: they
+# require different embedded target triples and must be built from each example.
+# Only independently built SRAM payloads are nested workspaces.
+exclude = ["microtun-boot-esp/bl-loader", "boards/rp2350-pico2/flash-algorithm"]
+
+# Host and platform-independent crates contain no `unsafe` and must stay
+# that way (microtun-boot-core also has `#![forbid(unsafe_code)]`).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.metadata.microtun-boot]
+name = "microtun-boot"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[workspace.dependencies]
+microtun-boot-core = { path = "microtun-boot-core", default-features = false }
+microtun-boot-test-hooks = { path = "testing/microtun-boot-test-hooks" }
+# Shared host helpers and board tool libraries. Board crates enable their CLI
+# by default; library users (including HIL) get them without clap.
+microtun-boot-build = { path = "microtun-boot-build", default-features = false }
+microtun-boot-tools-esp = { path = "microtun-boot-esp/tools", default-features = false }
+microtun-boot-tools-rp = { path = "microtun-boot-rp/tools", default-features = false }
+microtun-boot-tools-qemu = { path = "microtun-boot-qemu/tools", default-features = false }
+
+# Lightweight, board-independent chip descriptions.
+microtun-boot-chip-esp32c3 = { path = "chips/esp32c3" }
+microtun-boot-chip-rp235x = { path = "chips/rp235x" }
+microtun-boot-chip-qemu = { path = "chips/qemu" }
+
+# Platform crates and board layout crates.
+microtun-boot-esp = { path = "microtun-boot-esp", default-features = false, features = ["esp32c3"] }
+microtun-boot-rp = { path = "microtun-boot-rp", default-features = false, features = ["rp235xa"] }
+microtun-boot-qemu = { path = "microtun-boot-qemu", default-features = false, features = ["mps2-an385"] }
+microtun-boot-layout-esp32c3-supermini = { path = "boards/esp32c3-supermini/layout" }
+microtun-boot-layout-rp2350-pico2 = { path = "boards/rp2350-pico2/layout" }
+microtun-boot-layout-qemu = { path = "boards/qemu/layout" }
+
+# Shared firmware dependencies (each board opts into its own target features).
+embassy-executor = "0.10"
+embassy-time = "0.5"
+embassy-rp = { version = "0.10.0", default-features = false, features = ["rp235xa", "rt", "critical-section-impl"] }
+esp-bootloader-esp-idf = { version = "0.6", default-features = false, features = ["esp32c3"] }
+esp-println = { version = "0.18", default-features = false, features = ["esp32c3", "log-04", "jtag-serial"] }
+cortex-m = { version = "0.7.10", features = ["inline-asm"] }
+cortex-m-rt = "0.7.7"
+critical-section = "1.2"
+embassy-time-driver = "0.2"
+embassy-time-queue-utils = "0.3"
+riscv = { version = "0.15", default-features = false }
+
+# no_std crates. Members add the features they need.
+rand = { version = "0.9.5", default-features = false }
+defmt = "1"
+defmt-or-log = { version = "0.2.3", default-features = false }
+embedded-storage = "0.3.2"
+log = { version = "0.4", default-features = false }
+p256 = { version = "0.14", default-features = false, features = ["ecdsa"] }
+sha2 = { version = "0.10.9", default-features = false }
+uuid = { version = "1", default-features = false, features = ["v5"] }
+
+# Host-only crates (build helper and hardware harness).
+lz4_flex = "0.14.2"
+espflash = { version = "4.7", default-features = false, features = ["serialport"] }
+pem = "3"
+serde_json = "1"
+probe-rs = "0.32.0"
+probe-rs-espressif = "0.32.0"
+serialport = { version = "4.10", default-features = false }
+tempfile = "3"
+
+# Host tools.
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+elf = "0.8"
+esp-idf-part = "0.6"
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[profile.test]
+opt-level = 2

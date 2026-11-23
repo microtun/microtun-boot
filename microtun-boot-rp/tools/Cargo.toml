@@ -1,0 +1,37 @@
+[package]
+name = "microtun-boot-tools-rp"
+description = "microtun boot RP2350 host tooling: ELF export, PICOBIN, ROM sealing, SWD loading, serial monitor, flash algorithm"
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = ["cli"]
+# The `microtun-boot-tools-rp` binary.
+cli = ["dep:clap", "microtun-boot-build/cli"]
+
+[[bin]]
+name = "microtun-boot-tools-rp"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[dependencies]
+anyhow = { workspace = true }
+base64 = "0.22"
+clap = { workspace = true, optional = true }
+microtun-boot-build = { workspace = true, features = ["tools"] }
+k256 = { version = "0.14", features = ["pem"] }
+probe-rs = { workspace = true }
+microtun-boot-layout-rp2350-pico2 = { workspace = true }
+serde = "1"
+serde_json = { workspace = true }
+# UART0 monitor after flashing. `interface` keeps `UsbPortInfo` identical
+# whether or not espflash is in the same build.
+serialport = { workspace = true, features = ["usbportinfo-interface"] }
+sha2 = { workspace = true, features = ["std", "oid"] }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

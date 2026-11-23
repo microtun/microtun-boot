@@ -1,0 +1,281 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  # Called by release.yml to gate signing on the full CI suite.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  lint:
+    name: Format and host Clippy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create development signing keys
+        uses: ./.github/actions/dev-signing-keys
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # The root workspace includes the board and platform crates; the ESP
+      # handoff loader and RP2350 flash algorithm are standalone workspaces.
+      - name: Check Rust formatting (all workspaces)
+        run: |
+          for manifest in \
+            Cargo.toml \
+            boards/rp2350-pico2/flash-algorithm/Cargo.toml \
+            microtun-boot-esp/bl-loader/Cargo.toml; do
+            cargo fmt --manifest-path "$manifest" --all -- --check
+          done
+      - name: Clippy (host crates and unit tests)
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Clippy (QEMU regression harness)
+        run: cargo clippy -p microtun-boot-hil --all-targets --features qemu,regression --locked -- -D warnings
+
+  security:
+    name: Rust dependency security
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - uses: taiki-e/install-action@cargo-audit
+      - uses: taiki-e/install-action@cargo-deny
+      - uses: Swatinem/rust-cache@v2
+      # The root workspace excludes both standalone SRAM payload workspaces.
+      # Audit their separate lockfiles too, and use one policy for all three.
+      # Collect failures instead of stopping at the first affected workspace.
+      - name: Audit dependencies and check dependency sources (all workspaces)
+        run: |
+          status=0
+          for manifest in \
+            Cargo.toml \
+            boards/rp2350-pico2/flash-algorithm/Cargo.toml \
+            microtun-boot-esp/bl-loader/Cargo.toml; do
+            lockfile="${manifest%Cargo.toml}Cargo.lock"
+            echo "::group::cargo audit ($lockfile)"
+            cargo audit --file "$lockfile" || status=1
+            echo "::endgroup::"
+            echo "::group::cargo deny ($manifest)"
+            cargo deny --config deny.toml --manifest-path "$manifest" \
+              --all-features --locked check advisories sources || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+  build:
+    name: Build and Clippy / ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ESP32-C3
+            target: riscv32imc-unknown-none-elf
+            board-dir: boards/esp32c3-supermini
+            cache-workspace: .
+            package-args: -p esp32c3-supermini-microtun-boot -p esp32c3-supermini-firmware
+            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c3-supermini -p microtun-boot-chip-esp32c3
+            library-features: microtun-boot-esp/esp32c3,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
+          - name: RP2350
+            target: thumbv8m.main-none-eabihf
+            board-dir: boards/rp2350-pico2
+            cache-workspace: .
+            package-args: -p rp2350-pico2-microtun-boot -p rp2350-pico2-firmware
+            library-args: -p microtun-boot-rp -p microtun-boot-layout-rp2350-pico2 -p microtun-boot-chip-rp235x
+            library-features: microtun-boot-rp/rp235xa,microtun-boot-rp/uart-log,microtun-boot-rp/uuid
+          - name: QEMU
+            target: thumbv7m-none-eabi
+            board-dir: boards/qemu
+            cache-workspace: .
+            package-args: -p qemu-microtun-boot -p qemu-firmware
+            library-args: -p microtun-boot-qemu -p microtun-boot-layout-qemu -p microtun-boot-chip-qemu
+            library-features: microtun-boot-qemu/mps2-an385
+          - name: RP2350 flash algorithm
+            target: thumbv8m.main-none-eabi
+            board-dir: boards/rp2350-pico2/flash-algorithm
+            cache-workspace: boards/rp2350-pico2/flash-algorithm
+            package-args: --workspace
+            library-args: ""
+            library-features: ""
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create development signing keys
+        uses: ./.github/actions/dev-signing-keys
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.target }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            ${{ matrix.cache-workspace }} -> target
+      # Cargo discovers .cargo/config.toml from the working directory, not
+      # from --manifest-path. Running inside the board workspace loads its
+      # target triple, linker rustflags, and board-specific environment.
+      # Select only this board's binaries: the root workspace also contains
+      # chip implementations for other targets.
+      - name: Build complete board (release)
+        working-directory: ${{ matrix.board-dir }}
+        run: cargo build ${{ matrix.package-args }} --release --locked
+      - name: Clippy (embedded target)
+        working-directory: ${{ matrix.board-dir }}
+        # All selected board packages are binary targets (no src/lib.rs).
+        run: cargo clippy ${{ matrix.package-args }} --bins --locked -- -D warnings
+      # Check the platform, layout, and chip libraries as primary Clippy
+      # targets, so their warnings are not suppressed as dependencies.
+      - name: Clippy (embedded libraries)
+        if: matrix.library-args != ''
+        working-directory: ${{ matrix.board-dir }}
+        run: cargo clippy ${{ matrix.library-args }} --lib --features ${{ matrix.library-features }} --locked -- -D warnings
+      # Production changes the RP2350 OTP enrollment policy. Exercise it in
+      # CI, not only after creating a release tag.
+      - name: Build RP2350 production bootloader (release)
+        if: matrix.name == 'RP2350'
+        working-directory: boards/rp2350-pico2
+        run: cargo build -p rp2350-pico2-microtun-boot --features production --release --locked
+      - name: Clippy (RP2350 production)
+        if: matrix.name == 'RP2350'
+        working-directory: boards/rp2350-pico2
+        run: cargo clippy -p rp2350-pico2-microtun-boot --features production --bins --locked -- -D warnings
+
+  examples:
+    name: Example build and Clippy / ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ESP32-C3 SuperMini blinky
+            target: riscv32imc-unknown-none-elf
+            example-dir: examples/esp32c3-supermini-blinky
+            feature-args: ""
+          - name: RP2350 Pico 2 blinky
+            target: thumbv8m.main-none-eabihf
+            example-dir: examples/rp2350-pico2-blinky
+            feature-args: ""
+          - name: RP2350 Pico 2 W blinky
+            target: thumbv8m.main-none-eabihf
+            example-dir: examples/rp2350-pico2-blinky
+            feature-args: "--features pico2-w"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: ${{ matrix.target }}
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # Each example uses the root lockfile and workspace but its own
+      # .cargo/config.toml for the target, linker flags, profile and runner.
+      - name: Build example (release)
+        working-directory: ${{ matrix.example-dir }}
+        run: cargo build --release --locked ${{ matrix.feature-args }}
+      - name: Clippy (embedded example)
+        working-directory: ${{ matrix.example-dir }}
+        run: cargo clippy --bins --locked ${{ matrix.feature-args }} -- -D warnings
+
+  test:
+    name: Host unit and integration tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create development signing keys
+        uses: ./.github/actions/dev-signing-keys
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - uses: Swatinem/rust-cache@v2
+      # Default members are host packages; embedded boards are tested on
+      # their own targets in the build job.
+      - name: Test host workspace
+        run: cargo test --locked
+
+  qemu-regression:
+    name: QEMU HIL regression
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
+      - name: Create development signing keys
+        uses: ./.github/actions/dev-signing-keys
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          targets: thumbv7m-none-eabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            boards/qemu -> target
+      - name: Install MCUboot imgtool
+        run: python -m pip install imgtool
+      # Build the same pinned/patched QEMU as boards/qemu/qemu/Dockerfile.qemu,
+      # but natively on Ubuntu: the Docker image uses Debian trixie, whose
+      # newer glibc is not compatible with the hosted Ubuntu runner.
+      - name: Install QEMU build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential git libfdt-dev libglib2.0-dev libpixman-1-dev \
+            ninja-build pkg-config python3-venv zlib1g-dev
+      # Restore the native Ubuntu binary; this key changes whenever the
+      # pinned QEMU version, runner base, or downstream patch changes.
+      - name: Restore patched QEMU binary
+        id: qemu-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: target/qemu/qemu-system-arm
+          key: qemu-v10.1.0-ubuntu-24.04-v1-${{ hashFiles('boards/qemu/qemu/0001-an385-microtun-boot-test-peripherals.patch') }}
+      - name: Build pinned QEMU 10.1.0 with microtun boot board patch
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        run: |
+          python3 -m venv "$RUNNER_TEMP/qemu-build-venv"
+          "$RUNNER_TEMP/qemu-build-venv/bin/pip" install meson
+          export PATH="$RUNNER_TEMP/qemu-build-venv/bin:$PATH"
+          git clone --depth 1 --branch v10.1.0 https://gitlab.com/qemu-project/qemu.git "$RUNNER_TEMP/qemu-src"
+          git -C "$RUNNER_TEMP/qemu-src" apply --check "$GITHUB_WORKSPACE/boards/qemu/qemu/0001-an385-microtun-boot-test-peripherals.patch"
+          git -C "$RUNNER_TEMP/qemu-src" apply "$GITHUB_WORKSPACE/boards/qemu/qemu/0001-an385-microtun-boot-test-peripherals.patch"
+          cd "$RUNNER_TEMP/qemu-src"
+          ./configure --target-list=arm-softmmu \
+            --disable-docs --disable-rust --disable-slirp --disable-werror
+          ninja -C build qemu-system-arm
+          mkdir -p "$GITHUB_WORKSPACE/target/qemu"
+          cp build/qemu-system-arm "$GITHUB_WORKSPACE/target/qemu/qemu-system-arm"
+      # Save immediately after building so failed regression tests don't
+      # discard a successfully built (and expensive) QEMU executable.
+      - name: Save patched QEMU binary
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: target/qemu/qemu-system-arm
+          key: ${{ steps.qemu-cache.outputs.cache-primary-key }}
+      - name: Verify patched emulator
+        run: |
+          test -x target/qemu/qemu-system-arm
+          target/qemu/qemu-system-arm --version
+          target/qemu/qemu-system-arm -M help | grep -q mps2-an385
+      - name: Run full QEMU HIL regression suite
+        env:
+          MICROTUN_BOOT_QEMU_BIN: ${{ github.workspace }}/target/qemu/qemu-system-arm
+        run: cargo test -p microtun-boot-hil --features qemu,regression --locked -- --test-threads=2

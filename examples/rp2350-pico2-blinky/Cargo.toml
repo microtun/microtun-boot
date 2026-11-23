@@ -1,0 +1,48 @@
+[package]
+license.workspace = true
+name = "rp2350-pico2-blinky"
+description = "RP2350 Pico 2 / Pico 2 W Embassy blinky application booted by microtun boot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "rp2350-pico2-blinky"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+default = []
+# Pico 2 W: the on-board LED hangs off WL_GPIO0 of the CYW43439 radio.
+pico2-w = ["dep:cyw43", "dep:cyw43-pio", "dep:static_cell"]
+
+[dependencies]
+microtun-boot-rp = { workspace = true, features = ["uart-log"] }
+microtun-boot-core = { workspace = true, features = ["log"] }
+# Keep the flash layout in lockstep with the matching microtun boot board crate.
+microtun-boot-layout-rp2350-pico2 = { workspace = true }
+
+# embassy-rp supplies the Cortex-M thread executor and the time driver.
+# `imagedef-none` prevents ROM booting the app without microtun boot.
+embassy-rp = { workspace = true, features = ["imagedef-none", "executor-thread", "time-driver"] }
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+cortex-m = { workspace = true }
+cortex-m-rt = { workspace = true }
+critical-section = { workspace = true }
+log = { workspace = true }
+
+# Pico 2 W only: CYW43439 driver and its PIO SPI bus.
+cyw43 = { version = "0.7", optional = true }
+cyw43-pio = { version = "0.10", optional = true }
+static_cell = { version = "2", optional = true }
+
+[build-dependencies]
+microtun-boot-build = { workspace = true }
+microtun-boot-layout-rp2350-pico2 = { workspace = true }
+
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"

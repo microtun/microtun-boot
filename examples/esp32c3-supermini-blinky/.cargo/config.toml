@@ -1,0 +1,55 @@
+[build]
+target = "riscv32imc-unknown-none-elf"
+
+[target.riscv32imc-unknown-none-elf]
+rustflags = ["-C", "force-frame-pointers"]
+# `cargo run` converts the ELF to an ESP image, MCUboot-signs it, verifies the
+# result, erases the whole primary slot (image-0 @ 0x6F000, clearing any stale
+# MCUboot trailer), writes only the signed bytes and opens a monitor.
+# SLOT=image-1 targets the secondary slot instead, and `-- --no-monitor`
+# exits after the reset.
+runner = ["microtun-boot-tools-esp", "flash-app"]
+
+[env]
+# Must match the partition table offset baked into the microtun boot boot chain
+# (ESP32-C3 SuperMini board: 0x10000).
+ESP_BOOTLOADER_ESP_IDF_CONFIG_PARTITION_TABLE_OFFSET = "65536"
+
+# --- MCUboot signing via microtun-signer, microtun boot *development* key ---------
+# With both URL and KEY_ID set, microtun-boot-tools-esp signs remotely and never
+# falls back to a local development key. The released `dev` microtun boot boot chain trusts
+# exactly this key. The public key is not pinned: signatures are checked
+# against whatever key the service returns for KEY_ID.
+MICROTUN_SIGNER_URL = "https://signer.microtun.dev"
+MICROTUN_SIGNER_KEY_ID = "microtun-boot-dev-p256-v1"
+# Authenticate interactively with GitHub's device flow (the session is cached).
+# Must be "true", not "1": the microtun-signer CLI inherits this variable and
+# its clap parser only accepts true/false. In CI, set it to "false" and use
+# MICROTUN_SIGNER_TOKEN or GitHub Actions OIDC (`id-token: write`) instead.
+MICROTUN_SIGNER_GITHUB_LOGIN = "true"
+
+# MCUboot image version. Variables from your shell win over [env], so
+# `IMAGE_VERSION=0.2.0 cargo run --release` overrides this per build.
+IMAGE_VERSION = "0.1.0"
+# MCUboot security counter, included in the signed image's protected metadata.
+# Raise only when intentionally advancing anti-rollback state on the device.
+# `SECURITY_COUNTER=1 cargo run --release` overrides this for one image.
+SECURITY_COUNTER = "0"
+
+# Embedded release/dev profiles live in Cargo config because examples are
+# members of the root workspace (Cargo ignores member manifest profiles).
+# Run Cargo from this example directory to load its target and runner.
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"
+incremental = false
+
+[profile.dev]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"

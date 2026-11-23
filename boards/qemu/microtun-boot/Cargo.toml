@@ -1,0 +1,43 @@
+[package]
+license.workspace = true
+name = "qemu-microtun-boot"
+description = "QEMU Cortex-M3 bootloader for firmware upgrade tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "qemu-microtun-boot"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+default = ["downgrade-prevention", "bootstrap", "uuid"]
+downgrade-prevention = []
+bootstrap = []
+overwrite-only = []
+direct-xip = []
+direct-xip-revert = []
+# Optional imgtool name-to-UUID conversion; fixed preset IDs work without it.
+uuid = ["microtun-boot-core/uuid"]
+
+[dependencies]
+microtun-boot-core = { workspace = true, features = ["log"] }
+microtun-boot-qemu.workspace = true
+microtun-boot-layout-qemu.workspace = true
+cortex-m = { workspace = true, features = ["critical-section-single-core"] }
+cortex-m-rt.workspace = true
+embedded-storage.workspace = true
+rand.workspace = true
+log.workspace = true
+
+[build-dependencies]
+microtun-boot-layout-qemu.workspace = true
+microtun-boot-build.workspace = true
+
+# Every `unsafe` block states why it is sound, one operation at a time.
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"

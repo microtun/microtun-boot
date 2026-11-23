@@ -1,0 +1,5 @@
+# Target and rustflags come from ../.cargo/config.toml. Set NO_FLASH=1 to
+# save the signed image next to the ELF without flashing over SWD. After
+# flashing, the runner monitors UART0 until Ctrl+C (`-- --no-monitor` skips).
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = ["microtun-boot-tools-rp", "flash-app"]

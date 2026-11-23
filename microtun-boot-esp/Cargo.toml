@@ -1,0 +1,49 @@
+# This package belongs to the repository workspace. The RAM handoff loader is
+# an isolated nested workspace, built by build.rs.
+
+[package]
+license.workspace = true
+name = "microtun-boot-esp"
+description = "ESP chip support for microtun boot: flash partitions, boot handoff and RAM loader"
+# Publishes the selected chip to the build scripts of dependent binaries
+# (DEP_MICROTUN_BOOT_ESP_CHIP), see microtun_boot_build::check_platform_chip.
+links = "microtun-boot-esp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+microtun-boot-core = { path = "../microtun-boot-core", default-features = false }
+microtun-boot-chip-esp32c3 = { workspace = true }
+embassy-embedded-hal = { version = "0.6", default-features = false }
+embassy-sync = "0.8"
+embedded-storage = "0.3.2"
+esp-bootloader-esp-idf = { version = "0.6", default-features = false }
+esp-hal = { version = "1.2.2", default-features = false, features = ["unstable"] }
+esp-storage = { version = "0.10", default-features = false, features = ["embedded-storage"] }
+log = { version = "0.4", default-features = false, optional = true }
+rand = { version = "0.9.5", default-features = false, optional = true }
+
+[build-dependencies]
+elf = { version = "0.8.0", optional = true }
+microtun-boot-build = { path = "../microtun-boot-build" }
+microtun-boot-chip-esp32c3 = { workspace = true }
+
+[features]
+default = ["log"]
+# Exactly one chip. Its description is chips/esp32c3/.
+esp32c3 = ["esp-hal/esp32c3", "esp-bootloader-esp-idf/esp32c3", "esp-storage/esp32c3"]
+# Third-stage bootloader only: esp-hal runtime initialization and the RAM
+# handoff (`loader`), which embeds the bl-loader payload built by build.rs.
+# Keep library/firmware users free to choose their own runtime setup.
+boot-runtime = ["esp-hal/rt", "log", "dep:rand", "dep:elf"]
+# The RAM handoff loader's USB Serial/JTAG diagnostics.
+bl-loader-diagnostics = ["boot-runtime"]
+log = ["microtun-boot-core/log", "dep:log"]
+defmt = ["microtun-boot-core/defmt"]
+uuid = ["microtun-boot-core/uuid"]
+
+# Every `unsafe` block states why it is sound, one operation at a time.
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"

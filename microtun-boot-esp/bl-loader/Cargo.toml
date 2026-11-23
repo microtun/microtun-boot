@@ -1,0 +1,45 @@
+# The RAM handoff executable has its own workspace and linker profile.
+[workspace]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[package]
+license.workspace = true
+name = "bl-loader"
+description = "Standalone ESP RAM handoff payload built by microtun-boot-esp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "bl-loader"
+path = "src/main.rs"
+test = false
+bench = false
+
+# The standalone RAM payload is silent unless explicitly enabled.
+[features]
+default = []
+log = []
+
+# The profile the board build used to build this payload with: it must
+# fit the 4 KiB IRAM handoff. Applies only when this workspace is the root,
+# i.e. in microtun-boot-esp's nested build.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"
+incremental = false
+
+# Every `unsafe` block states why it is sound, one operation at a time.
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"

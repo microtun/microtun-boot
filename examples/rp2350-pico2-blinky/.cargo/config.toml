@@ -1,0 +1,53 @@
+[build]
+target = "thumbv8m.main-none-eabihf"
+
+[target.thumbv8m.main-none-eabihf]
+rustflags = ["-C", "link-arg=--nmagic"]
+# `cargo run` MCUboot-signs the ELF, verifies it against the RP2350 linking
+# contract, erases the whole primary slot (image-0 @ 0x10020000, clearing any
+# stale MCUboot trailer), writes only the signed bytes over SWD, resets the
+# board and monitors UART0 (GPIO0, 115200 8N1) until Ctrl+C. The console is
+# RPPORT, or else the SWD probe's own serial port; `-- --no-monitor` skips it.
+# `cargo run --release -- --slot secondary` targets image-1 instead, and
+# NO_FLASH=1 only saves <ELF>.signed.bin.
+runner = ["microtun-boot-tools-rp", "flash-app"]
+
+[env]
+# --- MCUboot signing via microtun-signer, microtun boot *development* key ---------
+# With both URL and KEY_ID set, microtun-boot-tools-rp signs remotely and never
+# falls back to a local development key. The released `dev` microtun boot bootloader trusts
+# exactly this key. The public key is not pinned unless you also set
+# MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY (see README).
+MICROTUN_SIGNER_URL = "https://signer.microtun.dev"
+MICROTUN_SIGNER_KEY_ID = "microtun-boot-dev-p256-v1"
+# Authenticate interactively with GitHub's device flow (the session is cached).
+# Must be "true", not "1": the microtun-signer CLI inherits this variable and
+# its clap parser only accepts true/false. In CI, set it to "false" and use
+# MICROTUN_SIGNER_TOKEN or GitHub Actions OIDC (`id-token: write`) instead.
+MICROTUN_SIGNER_GITHUB_LOGIN = "true"
+
+# MCUboot image version. Variables from your shell win over [env], so
+# `IMAGE_VERSION=0.2.0 cargo run --release` overrides this per build.
+IMAGE_VERSION = "0.1.0"
+# MCUboot security counter, included in the signed image's protected metadata.
+# Raise only when intentionally advancing anti-rollback state on the device.
+# `SECURITY_COUNTER=1 cargo run --release` overrides this for one image.
+SECURITY_COUNTER = "0"
+
+# Embedded release/dev profiles live in Cargo config because examples are
+# members of the root workspace (Cargo ignores member manifest profiles).
+# Run Cargo from this example directory to load its target and runner.
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"
+incremental = false
+
+[profile.dev]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"

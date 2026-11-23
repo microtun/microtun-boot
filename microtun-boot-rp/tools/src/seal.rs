@@ -1,0 +1,358 @@
+//! RP2350 ROM image sealing using the BIN-only parts of picoseal, with no
+//! `picotool` subprocess. The secp256k1 signature comes from microtun-signer
+//! (a local development key or a signer service). Sealing never programs OTP.
+use crate::{picobin, romseal};
+use anyhow::{Context, Result, ensure};
+use k256::{
+    PublicKey,
+    ecdsa::{Signature, VerifyingKey, signature::hazmat::PrehashVerifier},
+    elliptic_curve::sec1::ToSec1Point,
+    pkcs8::DecodePublicKey,
+};
+use microtun_boot_build::tools::{elf::Image, signer::Signer};
+use microtun_boot_layout_rp2350_pico2 as chip;
+use sha2::{Digest, Sha256};
+use std::path::Path;
+
+pub fn profile(payload: &[u8]) -> Result<&'static str> {
+    const MARKER: &[u8] = b"MICROTUN_BOOT_OTP_V1";
+    let positions: Vec<_> = payload
+        .windows(MARKER.len())
+        .enumerate()
+        .filter_map(|(i, w)| (w == MARKER).then_some(i))
+        .collect();
+    ensure!(
+        positions.len() == 1 && positions[0] >= picobin::ROM_HEADER_SIZE,
+        "bootloader needs exactly one OTP profile in ROM-loaded SRAM"
+    );
+    match microtun_boot_build::tools::bytes(payload, positions[0] + MARKER.len(), 4)? {
+        b"DEV\0" => Ok("dev"),
+        b"REL\0" => Ok("release"),
+        _ => anyhow::bail!("unknown OTP profile"),
+    }
+}
+
+/// Check unchanged executable bytes, the boot key, and a requested OTP plan.
+pub fn check_sealed(
+    unsigned: &[u8],
+    sealed: &[u8],
+    key: &PublicKey,
+    plan: Option<&serde_json::Value>,
+) -> Result<()> {
+    ensure!(
+        unsigned.len() >= picobin::ROM_HEADER_SIZE
+            && sealed.len() > unsigned.len()
+            && sealed.len() <= microtun_boot_layout_rp2350_pico2::BOOTLOADER_SIZE as usize,
+        "invalid sealed bootloader size"
+    );
+    ensure!(
+        unsigned[..picobin::LINKER_LAST_OFFSET] == sealed[..picobin::LINKER_LAST_OFFSET]
+            && unsigned[picobin::ROM_HEADER_SIZE..]
+                == sealed[picobin::ROM_HEADER_SIZE..unsigned.len()],
+        "seal changed executable or ROM metadata"
+    );
+    let embedded = picobin::signing_public_key(sealed)?;
+    let point = key.to_sec1_point(false);
+    ensure!(
+        embedded == &point.as_bytes()[1..],
+        "seal key differs from signing key"
+    );
+    if let Some(plan) = plan {
+        let key = plan["bootkey0"]
+            .as_array()
+            .context("OTP plan needs BOOTKEY0")?;
+        let digest: Vec<u8> = key
+            .iter()
+            .map(|v| {
+                v.as_u64()
+                    .and_then(|n| u8::try_from(n).ok())
+                    .context("invalid BOOTKEY0 byte")
+            })
+            .collect::<Result<_>>()?;
+        ensure!(
+            digest == Sha256::digest(embedded)[..],
+            "OTP plan BOOTKEY0 differs from seal digest"
+        );
+        ensure!(
+            plan["boot_flags1"]["key_valid"]
+                .as_u64()
+                .is_some_and(|v| v & 1 == 1)
+                && plan["crit1"]["secure_boot_enable"].as_u64() == Some(1),
+            "OTP plan must mark BOOTKEY0 valid and enable secure boot"
+        );
+    }
+    Ok(())
+}
+
+/// Independently verify both signed ROM hash and the exact microtun boot flash-to-SRAM
+/// load map. This replaces parsing the human-readable `picotool info` output.
+fn check_rom(image: &Image, sealed: &[u8]) -> Result<()> {
+    let report = romseal::verify(sealed, image.origin).context("parse sealed RP2350 image")?;
+    ensure!(
+        report.hash == romseal::Verified::Passed,
+        "RP2350 ROM hash did not verify"
+    );
+    ensure!(
+        report.signature == romseal::Verified::Passed,
+        "RP2350 ROM signature did not verify"
+    );
+    ensure!(
+        report.image_type().as_deref() == Some("ARM Secure"),
+        "seal is not ARM Secure"
+    );
+    let block = report.block.context("missing sealed PICOBIN block")?;
+    let entries = block.load_map().context("missing sealed ROM load map")?;
+    let expected = image
+        .payload
+        .len()
+        .checked_sub(picobin::ROM_HEADER_SIZE)
+        .context("invalid bootloader ROM header")?;
+    ensure!(
+        matches!(entries, [e] if e.storage_address == image.origin + picobin::ROM_HEADER_SIZE as u32
+            && e.runtime_address == chip::RAM_BASE
+            && usize::try_from(e.size) == Ok(expected)),
+        "seal lacks exact flash-to-SRAM ROM load map"
+    );
+    Ok(())
+}
+
+fn save_otp(otp_output: Option<&Path>, key: &PublicKey) -> Result<Option<serde_json::Value>> {
+    let Some(path) = otp_output else {
+        return Ok(None);
+    };
+    // Always create-new; never overwrite or silently merge provisioning plans.
+    let point = key.to_sec1_point(false);
+    let raw_public_key: [u8; 64] = point.as_bytes()[1..].try_into()?;
+    let otp_json = romseal::update_otp_json(None, &raw_public_key)?;
+    let document: serde_json::Value = serde_json::from_str(&otp_json)?;
+    use std::io::Write;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?
+        .write_all(otp_json.as_bytes())?;
+    Ok(Some(document))
+}
+
+fn finish(
+    image: &Image,
+    sealed: Vec<u8>,
+    key: &PublicKey,
+    otp_output: Option<&Path>,
+) -> Result<Vec<u8>> {
+    // Check *before* creating an OTP plan, so failed signing never emits one.
+    check_rom(image, &sealed)?;
+    check_sealed(&image.payload, &sealed, key, None)?;
+    if let Some(path) = otp_output {
+        ensure!(!path.try_exists()?, "OTP output must be a new file");
+        let document = save_otp(Some(path), key)?.context("missing generated OTP plan")?;
+        check_sealed(&image.payload, &sealed, key, Some(&document))?;
+    }
+    Ok(sealed)
+}
+
+/// Verify a pre-signed ROM bootloader (such as a CI release artifact) without
+/// an ELF or private key. The embedded signature proves image integrity, but
+/// only device OTP can establish whether this key is trusted by that board.
+pub fn verify_existing(sealed: &[u8]) -> Result<()> {
+    ensure!(
+        sealed.len() > picobin::ROM_HEADER_SIZE && sealed.len() <= chip::BOOTLOADER_SIZE as usize,
+        "signed RP2350 bootloader exceeds the reserved flash region or is empty"
+    );
+    let def = picobin::linker_image_def(sealed, chip::XIP_BASE)?;
+    let payload_end = picobin::ROM_HEADER_SIZE
+        .checked_add(usize::try_from(def.size)?)
+        .context("invalid RP2350 ROM load map")?;
+    ensure!(
+        def.link == i32::try_from(payload_end)?
+            && payload_end < sealed.len()
+            && def.source == chip::XIP_BASE + picobin::ROM_HEADER_SIZE as u32
+            && def.destination == chip::RAM_BASE
+            && def.vector == chip::RAM_BASE
+            && def.stack == chip::BOOT_INFO_ADDRESS
+            && def.size > 0
+            && def.size.is_multiple_of(4)
+            && u64::from(def.destination) + u64::from(def.size)
+                <= u64::from(chip::BOOT_INFO_ADDRESS),
+        "signed RP2350 bootloader has an invalid ROM flash-to-SRAM mapping"
+    );
+    profile(&sealed[..payload_end])?;
+    picobin::signing_public_key(sealed)?;
+    let image = Image {
+        origin: chip::XIP_BASE,
+        payload: sealed[..payload_end].to_vec(),
+    };
+    check_rom(&image, sealed)
+}
+
+/// Seal and sign the RP2350 ROM bootloader with `signer`'s secp256k1 key,
+/// using the in-process external-sign/reseal implementation. No private key
+/// is read here.
+pub fn seal(image: &Image, signer: &Signer, otp_output: Option<&Path>) -> Result<Vec<u8>> {
+    profile(&image.payload)?;
+    let pem = signer.public_key()?;
+    let key = PublicKey::from_public_key_pem(&pem)
+        .context("RP2350 ROM signing requires a secp256k1 key (not the MCUboot P-256 key)")?;
+    seal_with(image, &key, |digest| signer.sign_digest(digest), otp_output)
+}
+
+/// Seal for `key`, with `sign` producing the fixed-width 64-byte `r || s`
+/// secp256k1 signature of the ROM hash. The signature is checked against
+/// `key` before the image is resealed.
+pub fn seal_with(
+    image: &Image,
+    key: &PublicKey,
+    sign: impl FnOnce(&[u8]) -> Result<Vec<u8>>,
+    otp_output: Option<&Path>,
+) -> Result<Vec<u8>> {
+    profile(&image.payload)?;
+    let options = romseal::SealOptions {
+        external_sign: true,
+        bin_offset: Some(image.origin),
+        ..Default::default()
+    };
+    let prepared = romseal::seal(&image.payload, &options, None)?;
+    let digest = prepared
+        .hash
+        .context("RP2350 external seal did not supply a SHA-256 hash")?;
+    let signature = sign(&digest)?;
+    ensure!(
+        signature.len() == 64,
+        "RP2350 requires a 64-byte secp256k1 signature"
+    );
+    let signature =
+        Signature::from_slice(&signature).context("invalid secp256k1 r||s signature")?;
+    let verifier = VerifyingKey::from_sec1_bytes(key.to_sec1_point(false).as_bytes())?;
+    verifier
+        .verify_prehash(&digest, &signature)
+        .context("RP2350 ROM signature does not match the signer's public key")?;
+    let mut sealed = prepared.data;
+    romseal::reseal(
+        &mut sealed,
+        image.origin,
+        signature.to_der().as_bytes(),
+        key,
+    )?;
+    finish(image, sealed, key, otp_output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k256::{
+        SecretKey,
+        ecdsa::{SigningKey, signature::hazmat::PrehashSigner},
+    };
+
+    /// Stands in for microtun-signer: fixed-width `r || s`.
+    fn sign_with_key(key: &SecretKey) -> impl FnOnce(&[u8]) -> Result<Vec<u8>> + '_ {
+        move |digest| {
+            let signature: Signature = SigningKey::from(key).sign_prehash(digest)?;
+            Ok(signature.to_bytes().to_vec())
+        }
+    }
+
+    // An unsealed bootloader with precisely the 512-byte ROM header produced
+    // by boards/rp2350-pico2/microtun-boot/ld/bootloader.x and a V1 OTP profile.
+    fn image() -> Image {
+        let payload_size = 0x800usize;
+        let mut payload = vec![0u8; payload_size];
+        let image_words: [u32; 14] = [
+            0xffff_ded3,
+            0x1021_0142,
+            0x0000_0203,
+            chip::RAM_BASE,
+            0x0000_0344,
+            chip::RAM_BASE + 0x101,
+            chip::BOOT_INFO_ADDRESS,
+            0x0100_0406,
+            picobin::ROM_HEADER_SIZE as u32 - 28,
+            chip::RAM_BASE,
+            (payload_size - picobin::ROM_HEADER_SIZE) as u32,
+            0x0000_0aff,
+            0,
+            0xab12_3579,
+        ];
+        for (i, word) in image_words.iter().enumerate() {
+            payload[i * 4..i * 4 + 4].copy_from_slice(&word.to_le_bytes());
+        }
+        payload[512..516].copy_from_slice(&chip::BOOT_INFO_ADDRESS.to_le_bytes());
+        payload[516..520].copy_from_slice(&(chip::RAM_BASE + 0x101).to_le_bytes());
+        payload[0x280..0x294].copy_from_slice(b"MICROTUN_BOOT_OTP_V1");
+        payload[0x294..0x298].copy_from_slice(b"DEV\0");
+        Image {
+            origin: chip::XIP_BASE,
+            payload,
+        }
+    }
+
+    #[test]
+    fn signer_seals_bootloader_without_picotool() {
+        let bootloader = image();
+        let temp = tempfile::tempdir().unwrap();
+        let key = SecretKey::from_slice(&[7u8; 32]).unwrap();
+        let otp_path = temp.path().join("otp.json");
+        let signed = seal_with(
+            &bootloader,
+            &key.public_key(),
+            sign_with_key(&key),
+            Some(&otp_path),
+        )
+        .unwrap();
+        check_rom(&bootloader, &signed).unwrap();
+        verify_existing(&signed).unwrap();
+        let mut damaged = signed.clone();
+        damaged[0x400] ^= 1;
+        assert!(verify_existing(&damaged).is_err());
+        assert!(verify_existing(&signed[..picobin::ROM_HEADER_SIZE]).is_err());
+        let document: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&otp_path).unwrap()).unwrap();
+        check_sealed(
+            &bootloader.payload,
+            &signed,
+            &key.public_key(),
+            Some(&document),
+        )
+        .unwrap();
+        // Never overwrite an OTP plan.
+        assert!(
+            seal_with(
+                &bootloader,
+                &key.public_key(),
+                sign_with_key(&key),
+                Some(&otp_path)
+            )
+            .is_err()
+        );
+        // A signature by another key is rejected before resealing.
+        let other = SecretKey::from_slice(&[8u8; 32]).unwrap();
+        assert!(seal_with(&bootloader, &key.public_key(), sign_with_key(&other), None).is_err());
+    }
+
+    #[test]
+    fn external_signature_reseals_microtun_boot_image() {
+        let bootloader = image();
+        let key = SecretKey::from_slice(&[7u8; 32]).unwrap();
+        let opts = romseal::SealOptions {
+            external_sign: true,
+            bin_offset: Some(bootloader.origin),
+            ..Default::default()
+        };
+        let prepared = romseal::seal(&bootloader.payload, &opts, None).unwrap();
+        let digest = prepared.hash.unwrap();
+        let sig: Signature = SigningKey::from(&key).sign_prehash(&digest).unwrap();
+        let mut sealed = prepared.data;
+        romseal::reseal(
+            &mut sealed,
+            bootloader.origin,
+            sig.to_der().as_bytes(),
+            &key.public_key(),
+        )
+        .unwrap();
+        check_rom(&bootloader, &sealed).unwrap();
+        check_sealed(&bootloader.payload, &sealed, &key.public_key(), None).unwrap();
+        // Signature bytes alone are not sufficient when the payload is changed.
+        sealed[0x400] ^= 1;
+        assert!(check_rom(&bootloader, &sealed).is_err());
+    }
+}

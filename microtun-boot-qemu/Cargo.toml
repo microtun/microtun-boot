@@ -1,0 +1,34 @@
+# This package belongs to the repository workspace.
+
+[package]
+license.workspace = true
+name = "microtun-boot-qemu"
+description = "QEMU Cortex-M3 machine support for microtun boot tests: SPI NOR, checked layouts, handoff"
+# Publishes the selected machine to the build scripts of dependent binaries
+# (DEP_MICROTUN_BOOT_QEMU_CHIP), see microtun_boot_build::check_platform_chip.
+links = "microtun-boot-qemu"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+microtun-boot-core = { path = "../microtun-boot-core", default-features = false }
+microtun-boot-chip-qemu = { workspace = true }
+embedded-storage = "0.3.2"
+rand = { version = "0.9.5", default-features = false }
+cortex-m = { version = "0.7.10", features = ["inline-asm"] }
+log = { version = "0.4", default-features = false }
+
+[build-dependencies]
+microtun-boot-build = { path = "../microtun-boot-build" }
+
+[features]
+# Exactly one machine: QEMU mps2-an385 with microtun boot's test peripherals
+# patch (chips/qemu/).
+mps2-an385 = []
+
+# Every `unsafe` block states why it is sound, one operation at a time.
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"

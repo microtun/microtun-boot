@@ -1,0 +1,41 @@
+# This package belongs to the repository workspace.
+
+[package]
+license.workspace = true
+name = "microtun-boot-rp"
+description = "RP2350 chip support for microtun boot: checked board layouts, boot handoff and updater"
+# Publishes the selected chip to the build scripts of dependent binaries
+# (DEP_MICROTUN_BOOT_RP_CHIP), see microtun_boot_build::check_platform_chip.
+links = "microtun-boot-rp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+microtun-boot-core = { path = "../microtun-boot-core", default-features = false }
+microtun-boot-chip-rp235x = { workspace = true }
+embedded-storage = "0.3.2"
+rand = { version = "0.9.5", default-features = false }
+embassy-rp = { version = "0.10.0", default-features = false, features = ["unstable-pac"] }
+cortex-m = { version = "0.7.10", features = ["inline-asm"] }
+log = { version = "0.4", default-features = false, optional = true }
+
+[build-dependencies]
+microtun-boot-build = { path = "../microtun-boot-build" }
+
+[features]
+# Exactly one package variant. Both are the RP2350 die (chips/rp235x); the
+# variant only selects embassy-rp's pin count. RP2354A/RP2354B use rp235xa/
+# rp235xb; their in-package flash is the board layout's FLASH_SIZE.
+rp235xa = ["embassy-rp/rp235xa"]
+rp235xb = ["embassy-rp/rp235xb"]
+log = ["microtun-boot-core/log"]
+defmt = ["microtun-boot-core/defmt"]
+uuid = ["microtun-boot-core/uuid"]
+# Polling UART0 `log` backend shared by the bootloader and the example firmware.
+uart-log = ["dep:log"]
+
+# Every `unsafe` block states why it is sound, one operation at a time.
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+multiple_unsafe_ops_per_block = "warn"
