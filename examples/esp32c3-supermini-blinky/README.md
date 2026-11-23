@@ -42,7 +42,8 @@ flash the boot chain followed by the application:
 
 ```sh
 export ESPPORT=/dev/ttyACM0
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c3-supermini \
+  flash-bootloader --signed-bin \
   esp32c3-supermini-dev-boot-chain.sbv2.bin
 cargo run --release      # sign, flash image-0 and open the monitor (Ctrl+C to exit)
 ```
@@ -99,7 +100,8 @@ unset MICROTUN_BOOT_PUBKEYS MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY  # no pinned dev
 (cd boards/esp32c3-supermini/microtun-boot && NO_FLASH=1 cargo run --release)
 
 cd examples/esp32c3-supermini-blinky
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c3-supermini \
+  flash-bootloader --signed-bin \
   ../../target/riscv32imc-unknown-none-elf/release/boot-chain.sbv2.bin
 cargo run --release
 ```

@@ -2,6 +2,8 @@
 //! Board-independent ESP32-C3 hardware and microtun boot ABI constants.
 
 pub const CHIP: &str = "esp32c3";
+/// Flash offset at which the mask ROM looks for the second-stage bootloader.
+pub const ROM_BOOTLOADER_OFFSET: u32 = 0x00000000;
 pub const ERASE_SIZE: u32 = 0x00001000;
 pub const HEADER_SIZE: u32 = 0x00001000;
 pub const MMU_PAGE_SIZE: u32 = 0x00010000;

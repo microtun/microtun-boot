@@ -44,7 +44,7 @@ Defined in `layout/partitions.csv`:
 microtun boot finds slots by label at runtime, so a changed partition table needs
 no bootloader rebuild. Slots must start at `…F000` so the image after the
 4 KiB MCUboot header lands on a 64 KiB MMU page. Check a layout with
-`microtun-boot-tools-esp layout`.
+`microtun-boot-tools-esp --board esp32c3-supermini layout`.
 
 ## Setup
 
@@ -64,6 +64,11 @@ microtun-signer local init --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --a
 **Back up the local key store** (`microtun-signer local path`) before
 provisioning a board: without the RSA key you cannot sign a new boot chain
 for it.
+
+Every `microtun-boot-tools-esp` command needs `--board esp32c3-supermini` (or
+`MICROTUN_BOOT_ESP_BOARD=esp32c3-supermini`); the tool assumes no board. The
+`cargo run` runners in this directory and in the
+[blinky example](../../examples/esp32c3-supermini-blinky/README.md) pass it for you.
 
 ## Build and sign without flashing
 
@@ -85,7 +90,8 @@ To flash an already signed boot chain, such as a release artifact, without
 any signing key:
 
 ```sh
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c3-supermini \
+  flash-bootloader --signed-bin \
   esp32c3-supermini-release-boot-chain.sbv2.bin
 ```
 
@@ -114,7 +120,8 @@ must never ship. An application must:
 
 | Variable | Purpose |
 |---|---|
-| `ESPPORT` | Serial port; auto-detected if only one ESP32-C3 is attached |
+| `MICROTUN_BOOT_ESP_BOARD` | Board for `microtun-boot-tools-esp` when `--board` is absent |
+| `ESPPORT` | Serial port; auto-detected if only one ESP USB-Serial-JTAG device is attached |
 | `SLOT=image-1` | Write the secondary slot instead of the primary (see below) |
 | `MICROTUN_BOOT_OTP_BURN=YES` | Required to flash the boot chain |
 | `NO_FLASH=1` | Build and sign only |

@@ -1,6 +1,7 @@
-//! ESP32-C3 application epoch in BLOCK0.SECURE_VERSION (16 repeatable bits).
-//! USER_DATA is RS-coded and cannot be incrementally burned. IDF factory-app
-//! anti-rollback must remain disabled: microtun boot owns this field exclusively.
+//! Application epoch in BLOCK0.SECURE_VERSION (repeat-coded bits, one per
+//! epoch): 16 bits on the ESP32-C3, 9 bits on the ESP32-C5. USER_DATA is
+//! RS-coded and cannot be incrementally burned. IDF factory-app anti-rollback
+//! must remain disabled: microtun boot owns this field exclusively.
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use esp_hal::{
@@ -10,11 +11,21 @@ use esp_hal::{
 };
 use microtun_boot_core::{SecurityCounterError as E, SecurityCounterStore};
 
-// SECURE_VERSION starts at BLOCK0 bit 142: bit 14 of programming word 4.
+// SECURE_VERSION starts at BLOCK0 bit 142 (C3) or 137 (C5): bit 14 or 9 of
+// programming word 4. Both chips share its write-disable bit.
+#[cfg(feature = "esp32c3")]
 const VERSION_WORD_BIT: u32 = 14;
+#[cfg(feature = "esp32c5")]
+const VERSION_WORD_BIT: u32 = 9;
 const VERSION_WRITE_DISABLE_BIT: u32 = 18;
-// SECURE_VERSION is 16 bits wide; each burnt bit is one epoch.
+// Each burnt bit is one epoch. The C5's field is 9 bits in ESP-IDF v5.5.5's
+// eFuse table and esp-hal (its PAC's 16-bit error field covers reserved bits,
+// which are never staged here).
+#[cfg(feature = "esp32c3")]
 const SECURE_VERSION_BITS: u32 = 16;
+#[cfg(feature = "esp32c5")]
+const SECURE_VERSION_BITS: u32 = 9;
+const SECURE_VERSION_MASK: u32 = (1 << SECURE_VERSION_BITS) - 1;
 // Use the HAL monotonic timer, not a CPU-frequency-dependent spin count.
 // This is deliberately generous relative to an eFuse read/program operation;
 // a timeout aborts the current operation and the bootloader then resets with
@@ -30,7 +41,7 @@ enum Operation {
 
 /// Set by the first [`EfuseSecurityCounter::new`] of this boot.
 ///
-/// The target has no compare-and-swap, so this is a plain load then store;
+/// The ESP32-C3 has no compare-and-swap, so this is a plain load then store;
 /// that is race-free under `new`'s single-core, interrupts-disabled contract.
 static CREATED: AtomicBool = AtomicBool::new(false);
 
@@ -74,19 +85,74 @@ impl EfuseSecurityCounter {
         // Reset all data and RS staging registers to zero. No programming
         // command is issued here; only SECURE_VERSION is subsequently staged.
         let efuse = EFUSE::regs();
-        efuse.pgm_data0().reset();
-        efuse.pgm_data1().reset();
-        efuse.pgm_data2().reset();
-        efuse.pgm_data3().reset();
-        efuse.pgm_data4().reset();
-        efuse.pgm_data5().reset();
-        efuse.pgm_data6().reset();
-        efuse.pgm_data7().reset();
-        efuse.pgm_check_value0().reset();
-        efuse.pgm_check_value1().reset();
-        efuse.pgm_check_value2().reset();
+        #[cfg(feature = "esp32c3")]
+        {
+            efuse.pgm_data0().reset();
+            efuse.pgm_data1().reset();
+            efuse.pgm_data2().reset();
+            efuse.pgm_data3().reset();
+            efuse.pgm_data4().reset();
+            efuse.pgm_data5().reset();
+            efuse.pgm_data6().reset();
+            efuse.pgm_data7().reset();
+            efuse.pgm_check_value0().reset();
+            efuse.pgm_check_value1().reset();
+            efuse.pgm_check_value2().reset();
+        }
+        #[cfg(feature = "esp32c5")]
+        {
+            for data in efuse.pgm_data_iter() {
+                data.reset();
+            }
+            for check in efuse.pgm_check_value_iter() {
+                check.reset();
+            }
+        }
     }
 
+    /// Stage one SECURE_VERSION bit (`bit < SECURE_VERSION_BITS`) in
+    /// programming word 4, after [`Self::clear_program_registers`].
+    fn stage_version_bit(bit: u32) {
+        debug_assert!(bit < SECURE_VERSION_BITS);
+        let value = 1 << (VERSION_WORD_BIT + bit);
+        #[cfg(feature = "esp32c3")]
+        EFUSE::regs().pgm_data4().write(|w| {
+            // SAFETY: the caller checked `bit`, so only a SECURE_VERSION bit
+            // (word-4 bits 14..=29) is staged.
+            unsafe { w.pgm_data_4().bits(value) }
+        });
+        #[cfg(feature = "esp32c5")]
+        EFUSE::regs().pgm_data(4).write(|w| {
+            // SAFETY: the caller checked `bit`, so only a SECURE_VERSION bit
+            // (word-4 bits 9..=17) is staged.
+            unsafe { w.pgm_data().bits(value) }
+        });
+    }
+
+    /// Repeat-coding errors in the counter bits. Error register 3 mirrors
+    /// programming word 4 on both chips.
+    fn repeat_errors() -> u32 {
+        let efuse = EFUSE::regs();
+        #[cfg(feature = "esp32c3")]
+        let errors = u32::from(efuse.rd_repeat_err3().read().secure_version_err().bits());
+        #[cfg(feature = "esp32c5")]
+        let errors = u32::from(
+            efuse
+                .rd_repeat_data_err3()
+                .read()
+                .secure_version_err()
+                .bits(),
+        );
+        errors & SECURE_VERSION_MASK
+    }
+
+    #[cfg(feature = "esp32c5")]
+    fn set_timing() {
+        // Match ESP-IDF v5.5.5 components/hal/esp32c5/efuse_hal.c: the C5
+        // eFuse controller needs no timing configuration.
+    }
+
+    #[cfg(feature = "esp32c3")]
     fn set_timing() {
         // Match ESP-IDF v5.5.5 components/hal/esp32c3/efuse_hal.c.
         // The C3 eFuse clock is fixed: these are not APB-frequency settings.
@@ -143,14 +209,16 @@ impl EfuseSecurityCounter {
         Self::wait_idle(Operation::Any, E::Busy)?;
         Self::set_timing();
         let efuse = EFUSE::regs();
-        // SAFETY: documented C3 read opcode; no programming command is issued.
+        // SAFETY: documented read opcode (C3 and C5); no programming
+        // command is issued.
         efuse
             .conf()
             .modify(|_, w| unsafe { w.op_code().bits(0x5aa5) });
         efuse.cmd().modify(|_, w| w.read_cmd().set_bit());
         Self::wait_idle(Operation::Read, E::Read)?;
-        // C3 hardware workaround, also present in ROM: check READ_CMD again
-        // to ensure the eFuse clock is normal before accessing read registers.
+        // Hardware workaround (C3 and C5, also present in ROM and IDF): check
+        // READ_CMD again to ensure the eFuse clock is normal before accessing
+        // read registers.
         Self::wait_idle(Operation::Read, E::Read)?;
         #[cfg(feature = "log")]
         log::trace!("eFuse: read complete");
@@ -167,14 +235,8 @@ impl SecurityCounterStore for EfuseSecurityCounter {
         // Refresh physical fuses; do not trust app-writable shadow registers.
         Self::refresh()?;
         // Reject repeat-coding errors in the counter, rather than interpreting
-        // a damaged fuse as a smaller floor. Error register 3 mirrors word 4.
-        if EFUSE::regs()
-            .rd_repeat_err3()
-            .read()
-            .secure_version_err()
-            .bits()
-            != 0
-        {
+        // a damaged fuse as a smaller floor.
+        if Self::repeat_errors() != 0 {
             return Err(E::InvalidState);
         }
         let bits = efuse::read_field_le::<u16>(SECURE_VERSION);
@@ -200,9 +262,9 @@ impl SecurityCounterStore for EfuseSecurityCounter {
         for _ in current..value {
             let old = efuse::read_field_le::<u16>(SECURE_VERSION);
             let bit = (!old).trailing_zeros();
-            // `current < value <= 16` implies a clear bit below 16, but check
-            // it here: a glitched or inconsistent read must never stage a
-            // bit outside SECURE_VERSION (bit 16 would be word-4 bit 30).
+            // `current < value <= SECURE_VERSION_BITS` implies a clear bit
+            // inside the field, but check it here: a glitched or inconsistent
+            // read must never stage a bit outside SECURE_VERSION.
             if bit >= SECURE_VERSION_BITS {
                 return Err(E::InvalidState);
             }
@@ -211,14 +273,11 @@ impl SecurityCounterStore for EfuseSecurityCounter {
             // secure-boot, key or write-disable fuse can be burned.
             Self::wait_idle(Operation::Any, E::Busy)?;
             Self::clear_program_registers();
+            Self::stage_version_bit(bit);
             let efuse = EFUSE::regs();
-            // SAFETY: `bit < SECURE_VERSION_BITS` was checked above, so only a
-            // SECURE_VERSION bit (word-4 bits 14..=29) is staged.
-            efuse
-                .pgm_data4()
-                .write(|w| unsafe { w.pgm_data_4().bits(1 << (VERSION_WORD_BIT + bit)) });
             Self::set_timing();
-            // SAFETY: documented C3 programming opcode, with only BLOCK0 staged.
+            // SAFETY: documented programming opcode (C3 and C5), with only
+            // BLOCK0 staged.
             efuse
                 .conf()
                 .modify(|_, w| unsafe { w.op_code().bits(0x5a5a) });

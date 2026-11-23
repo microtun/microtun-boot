@@ -90,7 +90,8 @@ Hardware detectors complement the software:
 
 | Board | Detector | Coverage | Can the application disable it? |
 | --- | --- | --- | --- |
-| ESP32 | Clock glitch reset only | From IDF second stage onward; ROM unprotected | Yes, no lock exists |
+| ESP32-C3 | Clock glitch reset only | From IDF second stage onward; ROM unprotected | Yes, no lock exists |
+| ESP32-C5 | Power (voltage) glitch reset only; the chip has no clock glitch detector | From IDF second stage onward; ROM unprotected | Yes, no lock exists |
 | RP2350 | Four power/clock glitch detectors, armed from OTP after enrollment | From power-on, including ROM signature check | No, configuration locked until reset |
 
 ## Known limitations
@@ -106,7 +107,8 @@ The hardware security counter is the only rollback control that survives an atta
 | L5 | Both boards | When `MICROTUN_BOOT_PUBKEYS` is unset, builds trust the P-256 key `microtun-boot-local-p256` (or `MICROTUN_SIGNER_KEY_ID`) from microtun-signer's local store; without `MICROTUN_SIGNER_URL`, host tools sign with the local development keys. The keys are generated on each machine, outside the repository, **not committed**. A missing key makes the build or signing operation fail; with a signer service URL, the build requires an explicit `MICROTUN_BOOT_PUBKEYS`. | A release can accidentally trust or use a development key; exposure of its private half would allow unauthorized signed updates | Configure production public keys and signing credentials explicitly; verify every release key ring against approved production key fingerprints |
 | L6 | ESP32 | Slot locations come from the unsigned partition table. Only flash below the table end is reserved, so slots may overlap the `microtun-boot`, `nvs`, `phy_init` or `storage` partitions | A corrupted or edited table turns microtun boot's erase and copy operations against its own partition or application data | Write-protect or verify the table at manufacture |
 | L7 | ESP32 | Flash encryption is unsupported; the RAM loader reads segments with raw ROM flash reads; neither IDF profile disables ROM download mode | Flash is readable and writable over USB/UART; enabling encryption later requires loader changes | Manufacturing lockdown of download mode |
-| L8 | ESP32 | The counter has 16 epochs for the product's lifetime, and eFuses stay programmable by the application | A2 can exhaust the epoch budget or burn unrelated eFuses | Reserve epochs for security releases only |
+| L8 | ESP32 | The counter has 16 epochs (ESP32-C3) or 9 (ESP32-C5) for the product's lifetime, and eFuses stay programmable by the application | A2 can exhaust the epoch budget or burn unrelated eFuses | Reserve epochs for security releases only |
+| L8a | ESP32-C5 | esp-hal has no TRNG entropy source for the C5 (esp-hal limitation), so the delays before the hardened checks come from the hardware RNG without a guaranteed noise source | The timing jitter that makes a fault harder to place is weaker than on boards with a TRNG | None in microtun boot; rely on the power glitch detector and physical protection |
 | L9 | RP2350 | Enrollment trusts whatever key signed the running microtun boot (trust on first use) and runs unconditionally; without `production` the default OTP policy keeps SWD and spare ROM key slots open; the host-tool acknowledgement is bypassed by flashing directly | A fresh board can be irreversibly locked to a locally generated development ROM key or to an unintended key | Build with `--features production` and provision only in a controlled environment using an approved ROM signing key |
 | L10 | RP2350 | BOOTSEL/PICOBOOT stays enabled; OTP page locks last only until reset; OTP pages other than 1, 2 and 32 are unprotected | A3 retains flash access; other OTP data is writable by A2 | Burn permanent page locks and disable BOOTSEL as a manufacturing step |
 

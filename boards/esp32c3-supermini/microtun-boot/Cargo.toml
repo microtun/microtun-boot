@@ -14,13 +14,13 @@ bench = false
 
 [dependencies]
 microtun-boot-core = { workspace = true, features = ["log"] }
-microtun-boot-esp = { workspace = true, features = ["log", "boot-runtime"] }
+microtun-boot-esp = { workspace = true, features = ["esp32c3", "log", "boot-runtime"] }
 esp-hal = { version = "1.2.2", default-features = false, features = ["esp32c3", "exception-handler", "rt", "unstable", "log-04"] }
 # Logs go to the native USB-Serial-JTAG port.
-esp-println = { workspace = true }
+esp-println = { workspace = true, features = ["esp32c3"] }
 # Standard ESP-IDF app descriptor, required for the IDF second stage to load
 # microtun boot as the factory app.
-esp-bootloader-esp-idf = { workspace = true }
+esp-bootloader-esp-idf = { workspace = true, features = ["esp32c3"] }
 log = { workspace = true }
 riscv = { workspace = true }
 

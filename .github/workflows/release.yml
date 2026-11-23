@@ -28,6 +28,12 @@ env:
   MICROTUN_BOOT_DEV_ESP32C3_SBV2_KEY_SHA256: "55c316f9d366827c23334bc98233a1186bc0c3fca8d29c7a96ea652c6fa36432"
   MICROTUN_BOOT_RELEASE_ESP32C3_SBV2_KEY_ID: microtun-boot-release-esp32c3-sbv2-rsa3072-v1
   MICROTUN_BOOT_RELEASE_ESP32C3_SBV2_KEY_SHA256: "209026b3269a37c5c6d54d9185ecf2266285bcd23fba227ca2e78a089b866dfe"
+  # Placeholders until the ESP32-C5 keys exist on the signer: all-zero pins
+  # are rejected, so a release cannot run until both are filled in.
+  MICROTUN_BOOT_DEV_ESP32C5_SBV2_KEY_ID: microtun-boot-dev-esp32c5-sbv2-rsa3072-v1
+  MICROTUN_BOOT_DEV_ESP32C5_SBV2_KEY_SHA256: "0000000000000000000000000000000000000000000000000000000000000000"
+  MICROTUN_BOOT_RELEASE_ESP32C5_SBV2_KEY_ID: microtun-boot-release-esp32c5-sbv2-rsa3072-v1
+  MICROTUN_BOOT_RELEASE_ESP32C5_SBV2_KEY_SHA256: "0000000000000000000000000000000000000000000000000000000000000000"
   MICROTUN_BOOT_DEV_RP2350_ROM_KEY_ID: microtun-boot-dev-rp2350-rom-k1-v1
   MICROTUN_BOOT_DEV_RP2350_ROM_KEY_SHA256: "a4f13b59a35ec04304157df2ef69d7ecce9432a9abd0b0a16ca9f2a039edda10"
   MICROTUN_BOOT_RELEASE_RP2350_ROM_KEY_ID: microtun-boot-release-rp2350-rom-k1-v1
@@ -175,15 +181,21 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  build-esp32c3-supermini:
-    name: Build ESP32-C3 SuperMini (${{ matrix.profile }})
+  build-esp32:
+    name: Build ${{ matrix.board }} (${{ matrix.profile }})
     needs:
       - host-tools
       - signer-public-keys
     runs-on: ubuntu-24.04
     strategy:
       matrix:
+        board: [esp32c3-supermini, esp32c5-devkitc-1]
         profile: [dev, release]
+        include:
+          - board: esp32c3-supermini
+            target: riscv32imc-unknown-none-elf
+          - board: esp32c5-devkitc-1
+            target: riscv32imac-unknown-none-elf
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -194,7 +206,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-          targets: riscv32imc-unknown-none-elf
+          targets: ${{ matrix.target }}
 
       - name: Download host tools
         uses: actions/download-artifact@v4
@@ -214,12 +226,12 @@ jobs:
           echo "$RUNNER_TEMP/host-tools" >> "$GITHUB_PATH"
 
       # Run inside the board workspace so its .cargo/config.toml (target,
-      # rustflags, partition table offset) applies.
+      # rustflags, partition table offset, esp-hal options) applies.
       - name: Build microtun boot
-        working-directory: boards/esp32c3-supermini
+        working-directory: boards/${{ matrix.board }}
         env:
           MICROTUN_BOOT_PUBKEYS: ${{ runner.temp }}/pubkeys/${{ matrix.profile }}.pub.pem
-        run: cargo build --release --locked -p esp32c3-supermini-microtun-boot
+        run: cargo build --release --locked -p ${{ matrix.board }}-microtun-boot
 
       - name: Build ESP-IDF second stage (unsigned)
         env:
@@ -228,15 +240,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p unsigned
-          microtun-boot-tools-esp build-bootloader unsigned/bootloader.idf.bin
+          microtun-boot-tools-esp --board ${{ matrix.board }} build-bootloader unsigned/bootloader.idf.bin
 
       - name: Stage unsigned images
-        run: cp target/riscv32imc-unknown-none-elf/release/esp32c3-supermini-microtun-boot unsigned/
+        run: cp target/${{ matrix.target }}/release/${{ matrix.board }}-microtun-boot unsigned/
 
       - name: Upload unsigned images
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-esp32c3-supermini-${{ matrix.profile }}
+          name: unsigned-${{ matrix.board }}-${{ matrix.profile }}
           path: unsigned/
           if-no-files-found: error
           retention-days: 1
@@ -317,7 +329,7 @@ jobs:
     name: Sign bootloaders
     needs:
       - ci
-      - build-esp32c3-supermini
+      - build-esp32
       - build-rp2350-pico2
     runs-on: ubuntu-24.04
     # Must match RequiredEnvironment of the signer's github-actions identity.
@@ -373,7 +385,7 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/rom-pubkeys"
           mkdir -p "$dir"
-          for spec in esp32c3:ESP32C3_SBV2 rp2350:RP2350_ROM; do
+          for spec in esp32c3:ESP32C3_SBV2 esp32c5:ESP32C5_SBV2 rp2350:RP2350_ROM; do
             board="${spec%%:*}"
             name="${spec#*:}"
             for profile in dev release; do
@@ -403,31 +415,39 @@ jobs:
       # flash-bootloader with NO_FLASH=1 converts and secure-pads microtun boot,
       # signs it and the prebuilt IDF second stage with the same RSA-3072 key,
       # checks both carry the same ROM key, writes the partition table, and
-      # merges all three into one image for flash 0x0..0x60000.
-      - name: Sign ESP32-C3 SuperMini boot chains
+      # merges all three into one image that starts at the chip's second-stage
+      # offset (0x0 on the C3, 0x2000 on the C5) and ends with the factory
+      # partition.
+      - name: Sign ESP32 boot chains
         env:
           NO_FLASH: "1"
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist
-          for profile in dev release; do
-            key_var="MICROTUN_BOOT_${profile^^}_ESP32C3_SBV2_KEY_ID"
-            dir="$RUNNER_TEMP/unsigned/unsigned-esp32c3-supermini-$profile"
-            echo "::group::ESP32-C3 $profile"
-            ESP_BOOTLOADER_PROFILE="$profile" \
-            ESP_IDF_BOOTLOADER_BIN="$dir/bootloader.idf.bin" \
-            MICROTUN_SIGNER_KEY_ID="${!key_var}" \
-            MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY="$RUNNER_TEMP/rom-pubkeys/esp32c3-$profile.pub.pem" \
-              microtun-boot-tools-esp flash-bootloader "$dir/esp32c3-supermini-microtun-boot"
-            merged="$dir/boot-chain.sbv2.bin"
-            size="$(stat -c %s "$merged")"
-            if (( size != 0x60000 )); then
-              echo "::error::Merged ESP32-C3 $profile image is $size bytes, expected $((0x60000))"
-              exit 1
-            fi
-            cp "$merged" "dist/esp32c3-supermini-$profile-boot-chain.sbv2.bin"
-            echo "::endgroup::"
+          for spec in esp32c3-supermini:esp32c3:ESP32C3 esp32c5-devkitc-1:esp32c5:ESP32C5; do
+            IFS=: read -r board chip name <<< "$spec"
+            # The merged image's size follows from the board's layout.
+            layout() { microtun-boot-tools-esp --board "$board" layout --constant "$1"; }
+            expected=$(( $(layout MICROTUN_BOOT_OFFSET) + $(layout MICROTUN_BOOT_SIZE) - $(layout ROM_BOOTLOADER_OFFSET) ))
+            for profile in dev release; do
+              key_var="MICROTUN_BOOT_${profile^^}_${name}_SBV2_KEY_ID"
+              dir="$RUNNER_TEMP/unsigned/unsigned-$board-$profile"
+              echo "::group::$board $profile"
+              ESP_BOOTLOADER_PROFILE="$profile" \
+              ESP_IDF_BOOTLOADER_BIN="$dir/bootloader.idf.bin" \
+              MICROTUN_SIGNER_KEY_ID="${!key_var}" \
+              MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY="$RUNNER_TEMP/rom-pubkeys/$chip-$profile.pub.pem" \
+                microtun-boot-tools-esp --board "$board" flash-bootloader "$dir/$board-microtun-boot"
+              merged="$dir/boot-chain.sbv2.bin"
+              size="$(stat -c %s "$merged")"
+              if (( size != expected )); then
+                echo "::error::Merged $board $profile image is $size bytes, expected $expected"
+                exit 1
+              fi
+              cp "$merged" "dist/$board-$profile-boot-chain.sbv2.bin"
+              echo "::endgroup::"
+            done
           done
 
       - name: Sign RP2350 Pico 2 bootloaders
@@ -489,10 +509,12 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t assets < <(find dist -type f -name '*.bin' -print | sort)
-          # 2 profiles x (merged ESP32-C3 boot chain + RP2350).
+          # 2 profiles x (merged ESP32-C3 and ESP32-C5 boot chains + RP2350).
           expected=(
             esp32c3-supermini-dev-boot-chain.sbv2.bin
             esp32c3-supermini-release-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-dev-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-release-boot-chain.sbv2.bin
             rp2350-pico2-dev-microtun-boot.signed.bin
             rp2350-pico2-release-microtun-boot.signed.bin
           )

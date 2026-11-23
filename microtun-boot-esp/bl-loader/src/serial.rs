@@ -1,18 +1,23 @@
-//! Cache-independent diagnostic output to the ESP32-C3 native USB Serial/JTAG
-//! CDC/ACM port. This is the same port used by the board's esp-println logger.
+//! Cache-independent diagnostic output to the native USB Serial/JTAG CDC/ACM
+//! port. This is the same port used by the board's esp-println logger.
 //!
 //! No HAL, ROM printf, heap, globals, formatted-string machinery, or calls
 //! into microtun boot are used. The compiled function and its string literals are
 //! included in the self-contained, relocated IRAM payload.
 //!
-//! ESP32-C3 TRM: USB_SERIAL_JTAG_EP1_REG and EP1_CONF_REG at 0x6004_3000/+4.
+//! USB_SERIAL_JTAG_EP1_REG and EP1_CONF_REG are at 0x6004_3000/+4 on the
+//! ESP32-C3 and at 0x6000_F000/+4 on the ESP32-C5, with the same bits.
 //! The transmit packet is <=64 bytes, committed with WR_DONE. We never wait
 //! indefinitely if the USB host is absent, disconnected, or stops reading.
 
 use core::ptr::{read_volatile, write_volatile};
 
-const USB_EP1_DATA: *mut u32 = 0x6004_3000 as *mut u32;
-const USB_EP1_CONF: *mut u32 = 0x6004_3004 as *mut u32;
+#[cfg(chip = "esp32c3")]
+const USB_SERIAL_JTAG: usize = 0x6004_3000;
+#[cfg(chip = "esp32c5")]
+const USB_SERIAL_JTAG: usize = 0x6000_F000;
+const USB_EP1_DATA: *mut u32 = USB_SERIAL_JTAG as *mut u32;
+const USB_EP1_CONF: *mut u32 = (USB_SERIAL_JTAG + 4) as *mut u32;
 const TX_FREE: u32 = 1 << 1;
 const WR_DONE: u32 = 1;
 const MAX_SPINS: usize = 250_000;
@@ -58,10 +63,10 @@ pub fn event(label: &[u8], value: u32) {
         return;
     }
     for &byte in &line[..len] {
-        // SAFETY: C3 USB_SERIAL_JTAG EP1 data MMIO register.
+        // SAFETY: USB_SERIAL_JTAG EP1 data MMIO register.
         unsafe { write_volatile(USB_EP1_DATA, u32::from(byte)) };
     }
-    // SAFETY: C3 USB_SERIAL_JTAG EP1_CONF MMIO register.
+    // SAFETY: USB_SERIAL_JTAG EP1_CONF MMIO register.
     unsafe { write_volatile(USB_EP1_CONF, WR_DONE) };
 
     // Try to drain before ROM reset / MMU handoff. Bounded even if the host
@@ -72,7 +77,7 @@ pub fn event(label: &[u8], value: u32) {
 #[inline(never)]
 fn wait_tx_free() -> bool {
     for _ in 0..MAX_SPINS {
-        // SAFETY: C3 USB_SERIAL_JTAG EP1_CONF MMIO register.
+        // SAFETY: USB_SERIAL_JTAG EP1_CONF MMIO register.
         if unsafe { read_volatile(USB_EP1_CONF as *const u32) } & TX_FREE != 0 {
             return true;
         }

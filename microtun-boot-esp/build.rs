@@ -1,4 +1,4 @@
-//! Generate the linker contract from `chips/esp32c3`, publish the chip to
+//! Generate the linker contract from `chips/<chip>`, publish the chip to
 //! dependent binaries and, for the third-stage bootloader (`boot-runtime`),
 //! build the RAM handoff loader.
 //!
@@ -9,9 +9,47 @@
 use std::env;
 
 use microtun_boot_build::{out_dir, publish_chip, require_target, selected_chip, write_out};
-use microtun_boot_chip_esp32c3::{
-    BOOT_INFO_ADDRESS, BOOT_INFO_SIZE, ERASE_SIZE, PARTITION_TABLE_SIZE,
-};
+
+/// The chip description values this build script needs, from `chips/<chip>`.
+#[derive(Clone, Copy)]
+struct ChipLayout {
+    erase_size: u32,
+    partition_table_size: u32,
+    boot_info_address: u32,
+    boot_info_size: u32,
+    // Only the RAM handoff loader build reads these.
+    #[cfg_attr(not(feature = "boot-runtime"), allow(dead_code))]
+    loader_iram: u32,
+    #[cfg_attr(not(feature = "boot-runtime"), allow(dead_code))]
+    handoff_size: u32,
+}
+
+macro_rules! chip_layout {
+    ($krate:ident) => {
+        ChipLayout {
+            erase_size: $krate::ERASE_SIZE,
+            partition_table_size: $krate::PARTITION_TABLE_SIZE,
+            boot_info_address: $krate::BOOT_INFO_ADDRESS,
+            boot_info_size: $krate::BOOT_INFO_SIZE,
+            loader_iram: $krate::IDF_IRAM_LOADER_START,
+            handoff_size: $krate::IRAM_HANDOFF_SIZE,
+        }
+    };
+}
+
+/// Supported chips: Cargo feature, target triple and chip description.
+const CHIPS: &[(&str, &str, ChipLayout)] = &[
+    (
+        "esp32c3",
+        "riscv32imc-unknown-none-elf",
+        chip_layout!(microtun_boot_chip_esp32c3),
+    ),
+    (
+        "esp32c5",
+        "riscv32imac-unknown-none-elf",
+        chip_layout!(microtun_boot_chip_esp32c5),
+    ),
+];
 
 #[cfg(feature = "boot-runtime")]
 mod loader {
@@ -29,9 +67,7 @@ mod loader {
         file::Class,
     };
 
-    use microtun_boot_chip_esp32c3::{
-        BOOT_INFO_ADDRESS, BOOT_INFO_SIZE, IDF_IRAM_LOADER_START, IRAM_HANDOFF_SIZE,
-    };
+    use super::ChipLayout;
 
     /// Only the linked, file-backed IRAM instructions (and any in-segment constants)
     /// may be installed. The handoff copies u32 words, so pad RVC's final halfword.
@@ -205,7 +241,7 @@ mod loader {
     /// The nested Cargo uses a separate target directory under OUT_DIR, so it
     /// never waits on the outer build's lock. It inherits the outer build's
     /// environment, including the target's CARGO_ENCODED_RUSTFLAGS.
-    pub fn build(chip: &str, out: &Path) -> std::path::PathBuf {
+    pub fn build(chip: &str, layout: &ChipLayout, out: &Path) -> std::path::PathBuf {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("bl-loader");
         for input in ["src", "ld", "build.rs", "Cargo.toml", "Cargo.lock"] {
             println!(
@@ -220,8 +256,8 @@ mod loader {
             manifest_dir.join("../src/loader_abi.rs").display()
         );
         let target = env::var("TARGET").expect("TARGET");
-        let iram = IDF_IRAM_LOADER_START;
-        let capacity = IRAM_HANDOFF_SIZE;
+        let iram = layout.loader_iram;
+        let capacity = layout.handoff_size;
         let target_dir = out.join("loader-target");
         let mut cargo = Command::new(env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
         cargo
@@ -241,11 +277,11 @@ mod loader {
             .env("MICROTUN_BOOT_BL_LOADER_SIZE", format!("{capacity:#x}"))
             .env(
                 "MICROTUN_BOOT_BL_LOADER_BOOT_INFO_ADDRESS",
-                format!("{BOOT_INFO_ADDRESS:#x}"),
+                format!("{:#x}", layout.boot_info_address),
             )
             .env(
                 "MICROTUN_BOOT_BL_LOADER_BOOT_INFO_SIZE",
-                format!("{BOOT_INFO_SIZE:#x}"),
+                format!("{:#x}", layout.boot_info_size),
             );
         if env::var_os("CARGO_FEATURE_BL_LOADER_DIAGNOSTICS").is_some() {
             cargo.arg("--features").arg("log");
@@ -266,13 +302,31 @@ mod loader {
     }
 }
 
-/// Supported chips, the Cargo feature selecting each and its target triple.
-const CHIPS: &[(&str, &str)] = &[("esp32c3", "riscv32imc-unknown-none-elf")];
+/// esp-hal's `enable-pmp` option (on by default for RISC-V chips other than
+/// the C2/C3) *locks* PMP entries over the third stage's own `.rwtext`,
+/// `.stack` and data. Locked entries bind machine mode until the next reset,
+/// so the RAM handoff loader could not copy the application over that RAM:
+/// the first store would fault and the board would reset forever.
+#[cfg(feature = "boot-runtime")]
+fn require_handoff_compatible_hal(chip: &str) {
+    const PMP_ENV: &str = "ESP_HAL_CONFIG_ENABLE_PMP";
+    println!("cargo:rerun-if-env-changed={PMP_ENV}");
+    if chip == "esp32c3" {
+        return; // The option does not exist for the C3.
+    }
+    let value = env::var(PMP_ENV).unwrap_or_default();
+    assert!(
+        value.eq_ignore_ascii_case("false"),
+        "the {chip} third-stage bootloader needs {PMP_ENV}=false (found {value:?}): \
+         esp-hal's locked PMP regions would block the RAM handoff; set it in the \
+         board's .cargo/config.toml [env]"
+    );
+}
 
 fn main() {
-    let names: Vec<&str> = CHIPS.iter().map(|(chip, _)| *chip).collect();
+    let names: Vec<&str> = CHIPS.iter().map(|(chip, _, _)| *chip).collect();
     let chip = selected_chip("microtun-boot-esp", &names);
-    let target = CHIPS.iter().find(|(name, _)| *name == chip).unwrap().1;
+    let &(_, target, layout) = CHIPS.iter().find(|(name, _, _)| *name == chip).unwrap();
     require_target("microtun-boot-esp", chip, target);
 
     publish_chip(chip);
@@ -293,11 +347,11 @@ fn main() {
     }
     .unwrap_or_else(|_| panic!("invalid {OFFSET_ENV}: {offset}"));
     assert!(
-        parsed > 0 && parsed.is_multiple_of(ERASE_SIZE),
+        parsed > 0 && parsed.is_multiple_of(layout.erase_size),
         "{OFFSET_ENV} must be a nonzero erase-aligned address"
     );
     let end = parsed
-        .checked_add(PARTITION_TABLE_SIZE)
+        .checked_add(layout.partition_table_size)
         .expect("partition table end overflows");
     write_out(
         "partition_table.rs",
@@ -308,15 +362,20 @@ fn main() {
     );
 
     let script = include_str!("ld/microtun-boot.x.in")
-        .replace("@BOOT_INFO_ADDRESS@", &format!("{BOOT_INFO_ADDRESS:#010x}"))
-        .replace("@BOOT_INFO_SIZE@", &format!("{BOOT_INFO_SIZE:#x}"));
+        .replace("@CHIP@", chip)
+        .replace(
+            "@BOOT_INFO_ADDRESS@",
+            &format!("{:#010x}", layout.boot_info_address),
+        )
+        .replace("@BOOT_INFO_SIZE@", &format!("{:#x}", layout.boot_info_size));
     write_out("microtun-boot.x", script);
     println!("cargo:rustc-link-search={}", out_dir().display());
     println!("cargo:rerun-if-changed=ld/microtun-boot.x.in");
 
     #[cfg(feature = "boot-runtime")]
     {
-        let blob = loader::build(chip, &out_dir());
+        require_handoff_compatible_hal(chip);
+        let blob = loader::build(chip, &layout, &out_dir());
         println!("cargo:rustc-env=BL_LOADER_BIN={}", blob.display());
     }
 }

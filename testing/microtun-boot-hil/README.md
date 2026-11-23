@@ -23,6 +23,8 @@ cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=
 |---|---|
 | `qemu` | [Patched QEMU](../../boards/qemu/README.md), no hardware |
 | `esp32c3-supermini` | [ESP32-C3 SuperMini](../../boards/esp32c3-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
+
+The ESP32-C5-DevKitC-1 has no HIL target yet.
 | `rp2350-pico2` | [Pico 2](../../boards/rp2350-pico2/README.md#hardware-in-the-loop-tests) over SWD and UART0 |
 
 | Suite | Covers | Targets |

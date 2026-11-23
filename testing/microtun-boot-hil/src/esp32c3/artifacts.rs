@@ -37,11 +37,11 @@ pub fn bootloader(variant: Variant) -> &'static Bootloader {
         settings.no_flash = true;
         settings.prebuilt_image = Some(image_path);
         // The local development Secure Boot V2 key, whatever the shell sets.
-        let signer = microtun_boot_build::tools::signer::Signer::local(
-            microtun_boot_tools_esp::DEV_KEY.key_id,
-        );
-        let chain = microtun_boot_tools_esp::chain::boot_chain(&elf_path, &settings, &signer)
-            .unwrap_or_else(|e| panic!("cannot sign ESP boot chain: {e:#}"));
+        let board = &microtun_boot_tools_esp::board::ESP32C3_SUPERMINI;
+        let signer = microtun_boot_build::tools::signer::Signer::local(board.dev_key.key_id);
+        let chain =
+            microtun_boot_tools_esp::chain::boot_chain(board, &elf_path, &settings, &signer)
+                .unwrap_or_else(|e| panic!("cannot sign ESP boot chain: {e:#}"));
         let image = chain.microtun_boot;
         let idf_image = chain.stage2;
         Bootloader { image, idf_image }

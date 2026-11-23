@@ -69,7 +69,7 @@ fn main() {
         ),
     )
     .unwrap();
-    println!("cargo:rustc-check-cfg=cfg(chip, values(\"esp32c3\"))");
+    println!("cargo:rustc-check-cfg=cfg(chip, values(\"esp32c3\", \"esp32c5\"))");
     println!("cargo:rustc-cfg=chip=\"{chip}\"");
     println!("cargo:rustc-link-arg-bin=bl-loader=-T{}", output.display());
     println!("cargo:rustc-link-arg-bin=bl-loader=--nmagic");

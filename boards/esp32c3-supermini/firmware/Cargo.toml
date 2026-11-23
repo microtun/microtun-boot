@@ -15,20 +15,20 @@ bench = false
 
 [dependencies]
 microtun-boot-core = { workspace = true, features = ["log"] }
-microtun-boot-esp = { workspace = true }
+microtun-boot-esp = { workspace = true, features = ["esp32c3"] }
 microtun-boot-test-hooks = { workspace = true }
 embedded-storage = { workspace = true }
 # esp-rtos supplies the executor and time driver; do not enable an
 # embassy-executor arch-* feature or an embassy-time generic queue.
 embassy-executor = { workspace = true }
 embassy-time = { workspace = true }
-esp-bootloader-esp-idf = { workspace = true }
+esp-bootloader-esp-idf = { workspace = true, features = ["esp32c3"] }
 # Keep esp-hal's normal runtime and exception handler, as upstream examples do.
 # Same esp-hal release as the bootloader.
 esp-hal = { version = "1.2.2", features = ["esp32c3", "unstable", "log-04"] }
 esp-rtos = { version = "0.4", default-features = false, features = ["esp32c3", "embassy", "log-04"] }
 # Use esp-println for USB-Serial-JTAG application logging.
-esp-println = { workspace = true, features = ["critical-section"] }
+esp-println = { workspace = true, features = ["esp32c3", "critical-section"] }
 log = { workspace = true }
 
 [build-dependencies]

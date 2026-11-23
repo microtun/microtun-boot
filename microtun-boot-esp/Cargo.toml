@@ -14,7 +14,8 @@ rust-version.workspace = true
 
 [dependencies]
 microtun-boot-core = { path = "../microtun-boot-core", default-features = false }
-microtun-boot-chip-esp32c3 = { workspace = true }
+microtun-boot-chip-esp32c3 = { workspace = true, optional = true }
+microtun-boot-chip-esp32c5 = { workspace = true, optional = true }
 embassy-embedded-hal = { version = "0.6", default-features = false }
 embassy-sync = "0.8"
 embedded-storage = "0.3.2"
@@ -27,12 +28,15 @@ rand = { version = "0.9.5", default-features = false, optional = true }
 [build-dependencies]
 elf = { version = "0.8.0", optional = true }
 microtun-boot-build = { path = "../microtun-boot-build" }
+# build.rs picks the selected chip's constants at run time.
 microtun-boot-chip-esp32c3 = { workspace = true }
+microtun-boot-chip-esp32c5 = { workspace = true }
 
 [features]
 default = ["log"]
-# Exactly one chip. Its description is chips/esp32c3/.
-esp32c3 = ["esp-hal/esp32c3", "esp-bootloader-esp-idf/esp32c3", "esp-storage/esp32c3"]
+# Exactly one chip. Their descriptions are in chips/<chip>/.
+esp32c3 = ["dep:microtun-boot-chip-esp32c3", "esp-hal/esp32c3", "esp-bootloader-esp-idf/esp32c3", "esp-storage/esp32c3"]
+esp32c5 = ["dep:microtun-boot-chip-esp32c5", "esp-hal/esp32c5", "esp-bootloader-esp-idf/esp32c5", "esp-storage/esp32c5"]
 # Third-stage bootloader only: esp-hal runtime initialization and the RAM
 # handoff (`loader`), which embeds the bl-loader payload built by build.rs.
 # Keep library/firmware users free to choose their own runtime setup.

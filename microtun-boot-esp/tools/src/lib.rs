@@ -1,7 +1,9 @@
 //! ESP32 host tooling: ESP image checks and secure padding, Secure Boot V2
-//! signing, ESP-IDF partition tables and the IDF boot chain.
+//! signing, ESP-IDF partition tables and the IDF boot chain, for every board
+//! in [`board::BOARDS`].
 #![forbid(unsafe_code)]
 
+pub mod board;
 pub mod chain;
 pub mod elf;
 pub mod flash;
@@ -10,25 +12,20 @@ pub mod layout;
 pub mod merge;
 pub mod sbv2;
 
-use anyhow::Result;
-use microtun_boot_build::tools::{mcuboot::Geometry, signer::DevKey};
+pub use board::Board;
 
-/// MCUboot geometry of the board's primary slot (`boards/esp32c3-supermini/layout/partitions.csv`).
-pub fn geometry() -> Result<Geometry> {
-    use microtun_boot_layout_esp32c3_supermini::*;
-    let table = layout::default_layout()?;
+use anyhow::Result;
+use microtun_boot_build::tools::mcuboot::Geometry;
+
+/// MCUboot geometry of the board's primary slot (`boards/<board>/layout/partitions.csv`).
+pub fn geometry(board: &'static Board) -> Result<Geometry> {
+    let table = layout::default_layout(board)?;
     Ok(Geometry {
-        header: HEADER_SIZE,
+        header: board.chip.header_size,
         slot: table.region("image-0")?.1,
-        erase: ERASE_SIZE,
+        erase: board.chip.erase_size,
         write: 4,
         rom_fixed: None,
-        class: "esp32c3",
+        class: board.chip.name,
     })
 }
-
-/// Local development RSA-3072 Secure Boot V2 key (microtun-signer local store).
-pub const DEV_KEY: DevKey = DevKey {
-    key_id: "microtun-boot-local-esp32c3-sbv2-rsa3072",
-    env: "ESP_SBV2_KEY_ID",
-};

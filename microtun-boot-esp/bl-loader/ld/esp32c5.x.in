@@ -1,0 +1,35 @@
+/* Standalone flat ELF, linked for the RAM address at which microtun boot copies it.
+ * There is no ESP image header and no independent signing: these bytes are
+ * embedded as rodata within microtun boot's signed factory ESP application.
+ * Address and size come from chips/esp32c5, substituted
+ * by build.rs. The ROM entry points below are ESP32-C5 specific.
+ */
+ENTRY(bl_loader_entry)
+MEMORY {
+    LOADER (rx) : ORIGIN = @LOADER_IRAM@, LENGTH = @LOADER_SIZE@
+}
+SECTIONS {
+    .text ORIGIN(LOADER) : ALIGN(4) {
+        KEEP(*(.text.bl_loader_entry))
+        *(.text .text.*)
+        *(.rodata .rodata.*)
+        *(.srodata .srodata.*)
+        . = ALIGN(4);
+        __loader_end = .;
+    } > LOADER
+    .data : { *(.data .data.* .sdata .sdata.*) } > LOADER
+    .bss : { *(.bss .bss.* .sbss .sbss.* COMMON) } > LOADER
+    ASSERT(SIZEOF(.data) == 0, "RAM handoff cannot contain initialized writable statics")
+    ASSERT(SIZEOF(.bss) == 0, "RAM handoff cannot contain uninitialized statics")
+    ASSERT(SIZEOF(.text) > 0 && SIZEOF(.text) <= LENGTH(LOADER), "loader exceeds reclaimed IRAM")
+    ASSERT(ADDR(.text) == ORIGIN(LOADER), "loader entry address changed")
+    ASSERT((bl_loader_trap & 0xFF) == 0, "bl_loader_trap is the C5 CLIC-mode mtvec base and must be 256-byte aligned")
+    /DISCARD/ : { *(.eh_frame*) *(.comment*) }
+}
+/* ROM interface, ESP32-C5 rev v1.0+; addresses from IDF v5.5.5 esp32c5.rom.ld.
+ * The flash MMU has no ROM setter the loader uses: it writes the SPI_MEM
+ * MMU_ITEM registers directly, as IDF's mmu_ll does. */
+PROVIDE(software_reset = 0x40000094);
+PROVIDE(esp_rom_spiflash_read = 0x40000160);
+PROVIDE(Cache_Disable_Cache = 0x400006ac);
+PROVIDE(Cache_Enable_Cache = 0x400006b0);

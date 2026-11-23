@@ -17,7 +17,7 @@ the host tools), then call the helper for your binary from its own `build.rs`:
 | `emit_public_keys()` | Bootloader only: embeds the trusted application keys |
 
 ```rust,ignore
-// Application build.rs (ESP32-C3)
+// Application build.rs (ESP32-C3 or ESP32-C5)
 fn main() {
     microtun_boot_build::configure_esp_application();
 }

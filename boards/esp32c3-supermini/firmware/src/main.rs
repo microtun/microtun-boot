@@ -211,7 +211,10 @@ async fn main(spawner: Spawner) {
     // intentionally run before esp-rtos starts (also under Espressif QEMU).
     let timg0 = TimerGroup::new(p.TIMG0);
     esp_rtos::start(timg0.timer0, p.FROM_CPU_INTR0);
-    info!("ESP32-C3 Embassy runtime initialized");
+    info!(
+        "{} Embassy runtime initialized",
+        microtun_boot_esp::chip::NAME
+    );
 
     if updater.needs_confirmation().expect("read trailer") {
         // Example policy: a real application would check its health first.

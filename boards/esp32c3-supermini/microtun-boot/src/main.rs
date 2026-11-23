@@ -9,7 +9,6 @@
 
 use core::cell::RefCell;
 
-use esp_hal::rng::{Trng, TrngSource};
 use log::{error, info, warn};
 use microtun_boot_core::{Error, PublicKey, flash::ProgressFlash};
 use microtun_boot_esp::{boot_runtime, chip, glitch, loader};
@@ -48,14 +47,14 @@ fn main() -> ! {
         chip::NAME,
         config::MODE
     );
-    // Re-assert the clock glitch reset ESP-IDF's second stage should have
+    // Re-assert the glitch detector reset ESP-IDF's second stage should have
     // enabled, before slot validation, swaps or eFuse access.
     match glitch::enable() {
         Ok(report) => {
             if report.reset_by_glitch {
                 warn!("last reset was caused by a glitch detector");
             }
-            info!("clock glitch detector reset enabled");
+            info!("{} detector reset enabled", glitch::DETECTOR);
         }
         Err(e) => {
             error!("glitch detector setup failed: {:?}", e);
@@ -63,11 +62,9 @@ fn main() -> ! {
         }
     }
 
-    // Entropy for the random delays in front of fault-hardened checks. The
-    // C3 RNG only produces true randomness while an entropy source runs; the
-    // SAR ADC source is reverted (when dropped) before the handoff.
-    let trng_source = TrngSource::new(peripherals.RNG, peripherals.ADC1);
-    let mut trng = Trng::try_new().expect("TRNG entropy source");
+    // Randomness for the delays in front of fault-hardened checks; its
+    // entropy source is released before the handoff.
+    let mut rng = boot_runtime::BootRng::new(peripherals.RNG, peripherals.ADC1);
 
     let storage = microtun_boot_esp::open_flash(peripherals.FLASH);
     let flash_size = storage.lock(|storage| storage.borrow().capacity()) as u32;
@@ -109,7 +106,7 @@ fn main() -> ! {
         let mut bootloader = microtun_boot_esp::bootloader(&layout, &flash, &keys, boot_config)
             .expect("invalid slot configuration")
             .with_security_counter_store(&mut security_counter)
-            .with_entropy(&mut trng);
+            .with_entropy(&mut rng);
 
         let decision = match bootloader.boot_with_validator(
             &mut |partition: &mut microtun_boot_esp::StoragePartition<'_, BootFlash<'_, '_>>,
@@ -212,12 +209,9 @@ fn main() -> ! {
             max_image_size,
         },
         &mut security_counter,
-        &mut trng,
+        &mut rng,
     );
-    // Drop the TRNG handle before disabling its entropy source; the HAL
-    // refuses to disable the source while a TRNG user is still alive.
-    drop(trng);
-    drop(trng_source);
+    rng.release();
     // Leave the hardware timer running through the destructive RAM handoff,
     // with a full deadline for the application's startup.
     feed_watchdog();

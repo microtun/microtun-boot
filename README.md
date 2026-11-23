@@ -13,6 +13,7 @@ boots an image that fails verification.
 - **Policy:** downgrade prevention, minimum version, hardware security counter
   (anti-rollback), imgtool `--vid`/`--cid`.
 - **Boards:** [ESP32-C3 SuperMini](boards/esp32c3-supermini/README.md),
+  [ESP32-C5-DevKitC-1](boards/esp32c5-devkitc-1/README.md),
   [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
   [QEMU](boards/qemu/README.md) (tests only).
 
@@ -23,7 +24,8 @@ affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and
 ## Where to start
 
 - **Run an application on a released bootloader:** follow the
-  [ESP32-C3](examples/esp32c3-supermini-blinky/README.md) or
+  [ESP32-C3](examples/esp32c3-supermini-blinky/README.md),
+  [ESP32-C5](examples/esp32c5-devkitc-1-blinky/README.md) or
   [RP2350](examples/rp2350-pico2-blinky/README.md) blinky example.
 - **Build and flash your own bootloader:** follow the board README.
 - **Try it without hardware:** use the [QEMU board](boards/qemu/README.md).

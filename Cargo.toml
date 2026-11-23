@@ -13,6 +13,9 @@ members = [
     "boards/esp32c3-supermini/microtun-boot",
     "boards/esp32c3-supermini/firmware",
     "boards/esp32c3-supermini/layout",
+    "boards/esp32c5-devkitc-1/microtun-boot",
+    "boards/esp32c5-devkitc-1/firmware",
+    "boards/esp32c5-devkitc-1/layout",
     "boards/rp2350-pico2/microtun-boot",
     "boards/rp2350-pico2/firmware",
     "boards/rp2350-pico2/layout",
@@ -22,6 +25,7 @@ members = [
     "testing/microtun-boot-hil",
     "testing/microtun-boot-test-hooks",
     "examples/esp32c3-supermini-blinky",
+    "examples/esp32c5-devkitc-1-blinky",
     "examples/rp2350-pico2-blinky",
 ]
 # Root commands select only host-side packages; embedded board builds must
@@ -49,7 +53,7 @@ unsafe_code = "forbid"
 name = "microtun-boot"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.95"
 license = "PolyForm-Noncommercial-1.0.0"
@@ -66,14 +70,19 @@ microtun-boot-tools-qemu = { path = "microtun-boot-qemu/tools", default-features
 
 # Lightweight, board-independent chip descriptions.
 microtun-boot-chip-esp32c3 = { path = "chips/esp32c3" }
+microtun-boot-chip-esp32c5 = { path = "chips/esp32c5" }
 microtun-boot-chip-rp235x = { path = "chips/rp235x" }
 microtun-boot-chip-qemu = { path = "chips/qemu" }
 
-# Platform crates and board layout crates.
-microtun-boot-esp = { path = "microtun-boot-esp", default-features = false, features = ["esp32c3"] }
+# Platform crates and board layout crates. The ESP crates serve several
+# chips: each ESP member selects its chip feature itself (`esp32c3` or
+# `esp32c5`), because a chip feature here would be unified into every
+# board built from this workspace.
+microtun-boot-esp = { path = "microtun-boot-esp", default-features = false }
 microtun-boot-rp = { path = "microtun-boot-rp", default-features = false, features = ["rp235xa"] }
 microtun-boot-qemu = { path = "microtun-boot-qemu", default-features = false, features = ["mps2-an385"] }
 microtun-boot-layout-esp32c3-supermini = { path = "boards/esp32c3-supermini/layout" }
+microtun-boot-layout-esp32c5-devkitc-1 = { path = "boards/esp32c5-devkitc-1/layout" }
 microtun-boot-layout-rp2350-pico2 = { path = "boards/rp2350-pico2/layout" }
 microtun-boot-layout-qemu = { path = "boards/qemu/layout" }
 
@@ -81,8 +90,8 @@ microtun-boot-layout-qemu = { path = "boards/qemu/layout" }
 embassy-executor = "0.10"
 embassy-time = "0.5"
 embassy-rp = { version = "0.10.0", default-features = false, features = ["rp235xa", "rt", "critical-section-impl"] }
-esp-bootloader-esp-idf = { version = "0.6", default-features = false, features = ["esp32c3"] }
-esp-println = { version = "0.18", default-features = false, features = ["esp32c3", "log-04", "jtag-serial"] }
+esp-bootloader-esp-idf = { version = "0.6", default-features = false }
+esp-println = { version = "0.18", default-features = false, features = ["log-04", "jtag-serial"] }
 cortex-m = { version = "0.7.10", features = ["inline-asm"] }
 cortex-m-rt = "0.7.7"
 critical-section = "1.2"

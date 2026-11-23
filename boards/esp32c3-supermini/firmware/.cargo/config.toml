@@ -3,4 +3,4 @@
 [target.riscv32imc-unknown-none-elf]
 # Signs the image and writes it to the primary slot. Set IMAGE_VERSION to
 # choose the image version.
-runner = ["microtun-boot-tools-esp", "flash-app"]
+runner = ["microtun-boot-tools-esp", "--board", "esp32c3-supermini", "flash-app"]

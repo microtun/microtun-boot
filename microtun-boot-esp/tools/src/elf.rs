@@ -1,12 +1,12 @@
 //! ESP32 microtun boot ELF checks before ROM image conversion.
+use crate::board::ChipInfo;
 use anyhow::{Context, Result, ensure};
 use microtun_boot_build::tools::elf::{
     abi::{EM_RISCV, PT_LOAD},
     parse, sections,
 };
-use microtun_boot_layout_esp32c3_supermini as esp;
 
-pub fn check_bootloader(data: &[u8]) -> Result<()> {
+pub fn check_bootloader(data: &[u8], chip: &ChipInfo) -> Result<()> {
     let file = parse(data, EM_RISCV)?;
     for (name, _) in sections(&file)? {
         ensure!(name != ".bl_loader", "obsolete .bl_loader section");
@@ -20,16 +20,16 @@ pub fn check_bootloader(data: &[u8]) -> Result<()> {
         ensure!(p.p_filesz <= p.p_memsz, "invalid ESP load sizes");
         file.segment_data(&p)?;
         let mut addr = p.p_vaddr;
-        if (0x40380000..0x403e0000).contains(&addr) {
-            addr -= u64::from(esp::IRAM_DRAM_OFFSET);
+        if (u64::from(chip.iram.0)..u64::from(chip.iram.1)).contains(&addr) {
+            addr -= u64::from(chip.iram_dram_offset);
         }
-        if addr < u64::from(esp::ROM_DATA_START)
-            && u64::from(esp::PROTECTED_START) < addr + p.p_memsz
+        if addr < u64::from(chip.rom_data_start)
+            && u64::from(chip.protected_start) < addr + p.p_memsz
         {
             ensure!(
                 p.p_filesz == 0
-                    && addr == u64::from(esp::BOOT_INFO_ADDRESS)
-                    && p.p_memsz == u64::from(esp::BOOT_INFO_SIZE),
+                    && addr == u64::from(chip.boot_info_address)
+                    && p.p_memsz == u64::from(chip.boot_info_size),
                 "ESP load overlaps protected SRAM"
             );
         }

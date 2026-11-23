@@ -28,7 +28,7 @@ discussions.**
 
 Email `owner@microtun.dev` instead. Where possible, include:
 
-- the affected chip and board (`esp32c3`, `rp2350`, `qemu`) and the commit hash;
+- the affected chip and board (`esp32c3`, `esp32c5`, `rp2350`, `qemu`) and the commit hash;
 - the build configuration: Cargo features (for example `production`,
   `downgrade-prevention`, `bootstrap`), the ESP-IDF profile (`dev` or
   `release`), and whether `MICROTUN_BOOT_PUBKEYS` was set;

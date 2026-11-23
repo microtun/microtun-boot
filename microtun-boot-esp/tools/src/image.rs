@@ -1,12 +1,11 @@
 //! ESP application image parsing, SBv2 secure padding and slot inspection.
+use crate::board::{Board, ChipInfo};
 use anyhow::{Result, ensure};
 use espflash::{
-    flasher::{FlashData, FlashFrequency, FlashMode, FlashSettings, FlashSize},
+    flasher::{FlashData, FlashFrequency, FlashMode, FlashSettings},
     image_format::idf::IdfBootloaderFormat,
-    target::{Chip, XtalFrequency},
 };
 use microtun_boot_build::tools::{bytes, half, mcuboot, word};
-use microtun_boot_layout_esp32c3_supermini as chip;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fs, path::Path};
 
@@ -83,18 +82,34 @@ fn within(address: u64, size: u64, low: u64, high: u64) -> bool {
     low <= address && address <= high && size <= high - address
 }
 
-pub fn inspect_slot(data: &[u8], slot: u32, geometry: mcuboot::Geometry) -> Result<()> {
+/// Check a signed slot image as microtun boot's loader plan will: segment
+/// placement, MMU congruence and conflicts, and the entry point.
+pub fn inspect_slot(
+    data: &[u8],
+    slot: u32,
+    geometry: mcuboot::Geometry,
+    chip: &ChipInfo,
+) -> Result<()> {
     let signed = mcuboot::inspect(data, geometry, None)?;
     ensure!(
-        signed.header_size == chip::HEADER_SIZE as usize && signed.flags == 0,
+        signed.header_size == chip.header_size as usize && signed.flags == 0,
         "ESP MCUboot header/flags do not match policy"
     );
     let image = bytes(data, signed.header_size, signed.body_size)?;
     let parsed = segments(image)?;
-    ensure!(half(image, 12)? == 5, "expected ESP32-C3 chip id 5");
+    ensure!(
+        half(image, 12)? == chip.image_chip_id,
+        "expected {} chip id {}",
+        chip.display,
+        chip.image_chip_id
+    );
     let entry = u64::from(word(image, 4)?);
-    let page = u64::from(chip::MMU_PAGE_SIZE);
-    let bus = 128 * page;
+    let page = u64::from(chip.mmu_page_size);
+    let bus = u64::from(chip.bus_size());
+    let irom = u64::from(chip.irom_base);
+    let drom = u64::from(chip.drom_base);
+    let (iram_lo, iram_hi) = (u64::from(chip.iram.0), u64::from(chip.iram.1));
+    let (dram_lo, dram_hi) = (u64::from(chip.dram.0), u64::from(chip.dram.1));
     let base = u64::from(slot) + signed.header_size as u64;
     let mut mappings = BTreeMap::new();
     let mut entry_segment = false;
@@ -106,9 +121,7 @@ pub fn inspect_slot(data: &[u8], slot: u32, geometry: mcuboot::Geometry) -> Resu
         if addr < 65536 {
             continue;
         }
-        if within(addr, len, 0x42000000, 0x42000000 + bus)
-            || within(addr, len, 0x3c000000, 0x3c000000 + bus)
-        {
+        if within(addr, len, irom, irom + bus) || within(addr, len, drom, drom + bus) {
             ensure!(
                 addr % page == flash % page,
                 "ESP mapped segment not congruent with flash mod 64 KiB"
@@ -125,14 +138,14 @@ pub fn inspect_slot(data: &[u8], slot: u32, geometry: mcuboot::Geometry) -> Resu
             }
         } else {
             let padded = (len + 3) & !3;
-            let destination = if within(addr, padded, 0x40380000, 0x403e0000) {
-                addr - u64::from(chip::IRAM_DRAM_OFFSET)
-            } else if within(addr, padded, 0x3fc80000, 0x3fce0000)
+            let destination = if within(addr, padded, iram_lo, iram_hi) {
+                addr - u64::from(chip.iram_dram_offset)
+            } else if within(addr, padded, dram_lo, dram_hi)
                 || within(
                     addr,
                     padded,
-                    u64::from(chip::RTC_FAST_BASE),
-                    u64::from(chip::RTC_FAST_BASE + chip::RTC_FAST_SIZE),
+                    u64::from(chip.rtc_fast.0),
+                    u64::from(chip.rtc_fast.1),
                 )
             {
                 addr
@@ -141,36 +154,34 @@ pub fn inspect_slot(data: &[u8], slot: u32, geometry: mcuboot::Geometry) -> Resu
             };
             ensure!(
                 destination.is_multiple_of(4)
-                    && !(destination < 0x3fce0000
-                        && destination + padded > u64::from(chip::PROTECTED_START)),
+                    && !(destination < dram_hi
+                        && destination + padded > u64::from(chip.protected_start)),
                 "ESP segment reaches protected handoff SRAM"
             );
         }
     }
     ensure!(
-        entry_segment
-            && (within(entry, 2, 0x42000000, 0x42000000 + bus)
-                || within(entry, 2, 0x40380000, 0x403e0000)),
+        entry_segment && (within(entry, 2, irom, irom + bus) || within(entry, 2, iram_lo, iram_hi)),
         "ESP entry is outside executable segments"
     );
     Ok(())
 }
 
 /// Convert ELF to ESP-IDF image entirely in Rust. Matches the prior
-/// `espflash save-image --chip esp32c3 --flash-mode dio --flash-freq 80mhz
-/// --flash-size 4mb` invocation, without depending on its CLI binary.
-pub fn convert(elf: &Path, secure: bool) -> Result<Vec<u8>> {
+/// `espflash save-image --chip <chip> --flash-mode dio --flash-freq 80mhz
+/// --flash-size <board flash>` invocation, without depending on its CLI binary.
+pub fn convert(elf: &Path, secure: bool, board: &Board) -> Result<Vec<u8>> {
     let elf = fs::read(elf)?;
     let flash_data = FlashData::new(
         FlashSettings::new(
             Some(FlashMode::Dio),
-            Some(FlashSize::_4Mb),
+            Some(board.espflash_size()?),
             Some(FlashFrequency::_80Mhz),
         ),
         0,
         None,
-        Chip::Esp32c3,
-        XtalFrequency::_40Mhz,
+        board.chip.espflash,
+        board.chip.xtal,
     );
     let format = IdfBootloaderFormat::new(&elf, &flash_data, None, None, None, None)?;
     let image = format

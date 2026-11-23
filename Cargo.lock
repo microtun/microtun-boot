@@ -1504,6 +1504,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a8733fdeadc349ba1e4a345c7bfb74d195d8c98fd3be9d2c15bfd78601cbc44"
 dependencies = [
  "document-features",
+ "object 0.37.3",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
@@ -1568,6 +1569,7 @@ dependencies = [
  "document-features",
  "esp-metadata-generated",
  "esp32c3",
+ "esp32c5",
 ]
 
 [[package]]
@@ -1608,6 +1610,7 @@ dependencies = [
  "esp-rom-sys",
  "esp-sync",
  "esp32c3",
+ "esp32c5",
 ]
 
 [[package]]
@@ -1654,7 +1657,7 @@ dependencies = [
 
 [[package]]
 name = "esp32c3-supermini-blinky"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "embassy-executor",
  "embassy-time",
@@ -1670,7 +1673,7 @@ dependencies = [
 
 [[package]]
 name = "esp32c3-supermini-firmware"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "embassy-executor",
  "embassy-time",
@@ -1688,7 +1691,7 @@ dependencies = [
 
 [[package]]
 name = "esp32c3-supermini-microtun-boot"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "esp-bootloader-esp-idf",
  "esp-hal",
@@ -1707,6 +1710,54 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97afa80d8110c7234f840252baa8ee8de28f78e8dc233d2d430c0ccfbe59a2b5"
 dependencies = [
  "vcell",
+]
+
+[[package]]
+name = "esp32c5-devkitc-1-blinky"
+version = "0.2.0"
+dependencies = [
+ "embassy-executor",
+ "embassy-time",
+ "esp-backtrace",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "esp-rtos",
+ "log",
+ "microtun-boot-build",
+ "microtun-boot-esp",
+]
+
+[[package]]
+name = "esp32c5-devkitc-1-firmware"
+version = "0.2.0"
+dependencies = [
+ "embassy-executor",
+ "embassy-time",
+ "embedded-storage",
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "esp-rtos",
+ "log",
+ "microtun-boot-build",
+ "microtun-boot-core",
+ "microtun-boot-esp",
+ "microtun-boot-test-hooks",
+]
+
+[[package]]
+name = "esp32c5-devkitc-1-microtun-boot"
+version = "0.2.0"
+dependencies = [
+ "esp-bootloader-esp-idf",
+ "esp-hal",
+ "esp-println",
+ "log",
+ "microtun-boot-build",
+ "microtun-boot-core",
+ "microtun-boot-esp",
+ "riscv",
 ]
 
 [[package]]
@@ -2492,7 +2543,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "microtun-boot-build"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2508,19 +2559,23 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-chip-esp32c3"
-version = "0.1.0"
+version = "0.2.0"
+
+[[package]]
+name = "microtun-boot-chip-esp32c5"
+version = "0.2.0"
 
 [[package]]
 name = "microtun-boot-chip-qemu"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "microtun-boot-chip-rp235x"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "microtun-boot-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "defmt",
  "defmt-or-log",
@@ -2534,7 +2589,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-esp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "elf",
  "embassy-embedded-hal",
@@ -2546,13 +2601,14 @@ dependencies = [
  "log",
  "microtun-boot-build",
  "microtun-boot-chip-esp32c3",
+ "microtun-boot-chip-esp32c5",
  "microtun-boot-core",
  "rand",
 ]
 
 [[package]]
 name = "microtun-boot-hil"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "embedded-storage",
  "esp-idf-part",
@@ -2578,14 +2634,21 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-layout-esp32c3-supermini"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "microtun-boot-chip-esp32c3",
 ]
 
 [[package]]
+name = "microtun-boot-layout-esp32c5-devkitc-1"
+version = "0.2.0"
+dependencies = [
+ "microtun-boot-chip-esp32c5",
+]
+
+[[package]]
 name = "microtun-boot-layout-qemu"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "microtun-boot-chip-qemu",
  "microtun-boot-core",
@@ -2593,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-layout-rp2350-pico2"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "microtun-boot-chip-rp235x",
  "microtun-boot-core",
@@ -2602,7 +2665,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-qemu"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "embedded-storage",
@@ -2615,7 +2678,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-rp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "embassy-rp",
@@ -2629,14 +2692,14 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-test-hooks"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "microtun-boot-core",
 ]
 
 [[package]]
 name = "microtun-boot-tools-esp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2645,6 +2708,7 @@ dependencies = [
  "espflash",
  "microtun-boot-build",
  "microtun-boot-layout-esp32c3-supermini",
+ "microtun-boot-layout-esp32c5-devkitc-1",
  "rsa",
  "serialport",
  "sha2 0.10.9",
@@ -2654,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-tools-qemu"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2665,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "microtun-boot-tools-rp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2843,6 +2907,15 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "object"
+version = "0.37.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -3236,7 +3309,7 @@ dependencies = [
 
 [[package]]
 name = "qemu-firmware"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -3256,7 +3329,7 @@ dependencies = [
 
 [[package]]
 name = "qemu-microtun-boot"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -3488,7 +3561,7 @@ dependencies = [
 
 [[package]]
 name = "rp2350-pico2-blinky"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -3508,7 +3581,7 @@ dependencies = [
 
 [[package]]
 name = "rp2350-pico2-firmware"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",
@@ -3526,7 +3599,7 @@ dependencies = [
 
 [[package]]
 name = "rp2350-pico2-microtun-boot"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cortex-m",
  "cortex-m-rt",

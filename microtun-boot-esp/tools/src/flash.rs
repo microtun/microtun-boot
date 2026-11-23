@@ -1,15 +1,15 @@
-//! ESP32-C3 ROM-only flashing via `espflash` (no RAM stub).
+//! ESP32-C3/C5 ROM-only flashing via `espflash` (no RAM stub).
 //!
 //! Keep microtun boot's flash layout checks and USB port selection here; delegate
 //! serial reset, SLIP, ROM commands and data transfers to `espflash`.
 //! A full-slot erase uses the ROM `FLASH_BEGIN` command rather than the
 //! `espflash::Flasher::erase_region` API (which requires a RAM stub).
+use crate::board::Board;
 use anyhow::{Context, Result, anyhow, ensure};
 use espflash::{
     command::{Command, CommandType},
     connection::{Connection, ResetAfterOperation, ResetBeforeOperation},
-    flasher::{FlashSize, Flasher, SpiAttachParams, SpiSetParams},
-    target::Chip,
+    flasher::{Flasher, SpiAttachParams, SpiSetParams},
 };
 use microtun_boot_build::tools::progress::Progress;
 use serialport::{SerialPortInfo, SerialPortType, UsbPortInfo};
@@ -21,27 +21,27 @@ use std::{
     time::{Duration, Instant},
 };
 
-const FLASH_SIZE: u32 = microtun_boot_layout_esp32c3_supermini::FLASH_SIZE;
 const SECTOR_SIZE: u32 = 4096;
 const ROM_BLOCK_SIZE: u32 = 0x400;
 const BAUD: u32 = 115_200;
 
 /// Validate before opening a port: erase operations must cover whole sectors.
-fn check_range(offset: u32, size: u32) -> Result<()> {
+fn check_range(flash_size: u32, offset: u32, size: u32) -> Result<()> {
     ensure!(
         size > 0
             && offset.is_multiple_of(SECTOR_SIZE)
             && size.is_multiple_of(SECTOR_SIZE)
             && offset
                 .checked_add(size)
-                .is_some_and(|end| end <= FLASH_SIZE),
-        "invalid ESP32 flash region {offset:#x} + {size:#x} (4 MiB flash, 4 KiB sectors)"
+                .is_some_and(|end| end <= flash_size),
+        "invalid ESP32 flash region {offset:#x} + {size:#x} ({} KiB flash, 4 KiB sectors)",
+        flash_size / 1024
     );
     Ok(())
 }
 
 /// The ROM erases every sector that a write touches, even for short images.
-fn check_write(offset: u32, bytes: &[u8]) -> Result<()> {
+fn check_write(flash_size: u32, offset: u32, bytes: &[u8]) -> Result<()> {
     ensure!(
         offset.is_multiple_of(SECTOR_SIZE),
         "unaligned ESP flash offset {offset:#x}"
@@ -51,8 +51,8 @@ fn check_write(offset: u32, bytes: &[u8]) -> Result<()> {
         .ok()
         .and_then(|len| len.checked_next_multiple_of(SECTOR_SIZE));
     ensure!(
-        rounded.is_some_and(|len| offset.checked_add(len).is_some_and(|end| end <= FLASH_SIZE)),
-        "ESP flash image at {offset:#x} exceeds {FLASH_SIZE:#x}"
+        rounded.is_some_and(|len| offset.checked_add(len).is_some_and(|end| end <= flash_size)),
+        "ESP flash image at {offset:#x} exceeds {flash_size:#x}"
     );
     Ok(())
 }
@@ -104,11 +104,14 @@ fn select_port(
 
 /// `espflash` owns resetting into download mode, ROM sync, and SPI setup.
 /// Retry opening the port because native USB can re-enumerate during reset.
-fn connect_rom() -> Result<(Flasher, String)> {
+fn connect_rom(board: &Board) -> Result<(Flasher, String)> {
     let ports = serialport::available_ports().context("enumerating serial ports")?;
     let requested = std::env::var("ESPPORT").ok().filter(|p| !p.is_empty());
     let (path, usb) = select_port(requested.as_deref(), &ports)?;
-    eprintln!("Connecting ESP32 ROM downloader on {path} (no stub)");
+    eprintln!(
+        "Connecting {} ROM downloader on {path} (no stub)",
+        board.chip.display
+    );
     let mut last_error = None;
     for attempt in 1..=5 {
         let result = (|| -> Result<Flasher> {
@@ -132,11 +135,11 @@ fn connect_rom() -> Result<(Flasher, String)> {
                 false, // Never load a RAM stub (including Secure Download Mode).
                 false, // No flash reads or verification in Secure Download Mode.
                 false, // Always program even when bytes happen to match.
-                Some(Chip::Esp32c3),
+                Some(board.chip.espflash),
                 None,
             )
             .context("ROM SYNC / flash connection (is download mode enabled?)")?;
-            flasher.set_flash_size(FlashSize::_4Mb);
+            flasher.set_flash_size(board.espflash_size()?);
             // Reject a pre-existing RAM stub, even if a device reset silently
             // failed. The ROM returns a nonzero SYNC value; a stub returns 0.
             let signature: u32 = flasher
@@ -151,7 +154,7 @@ fn connect_rom() -> Result<(Flasher, String)> {
             );
             // In Secure Download Mode flash autodetection (and its implicit
             // SPI_SET_PARAMS) is skipped by espflash, so configure it ourselves.
-            attach_flash(&mut flasher)?;
+            attach_flash(&mut flasher, board.flash_size)?;
             Ok(flasher)
         })();
         match result {
@@ -168,7 +171,7 @@ fn connect_rom() -> Result<(Flasher, String)> {
 
 /// Set the board's flash geometry even when Secure Download Mode prevents
 /// `espflash` from reading its JEDEC ID during connection setup.
-fn attach_flash(flasher: &mut Flasher) -> Result<()> {
+fn attach_flash(flasher: &mut Flasher, flash_size: u32) -> Result<()> {
     let connection = flasher.connection();
     connection
         .with_timeout(CommandType::SpiAttach.timeout(), |c| {
@@ -180,10 +183,10 @@ fn attach_flash(flasher: &mut Flasher) -> Result<()> {
     connection
         .with_timeout(CommandType::SpiSetParams.timeout(), |c| {
             c.command(Command::SpiSetParams {
-                spi_params: SpiSetParams::default(FLASH_SIZE),
+                spi_params: SpiSetParams::default(flash_size),
             })
         })
-        .context("ROM SPI_SET_PARAMS (4 MiB)")?;
+        .with_context(|| format!("ROM SPI_SET_PARAMS ({} KiB)", flash_size / 1024))?;
     Ok(())
 }
 
@@ -193,7 +196,7 @@ fn flash_begin(address: u32, erase_size: u32, blocks: u32) -> Command<'static> {
         blocks,
         block_size: ROM_BLOCK_SIZE,
         offset: address,
-        supports_encryption: true, // C3 ROM takes a fifth, zero encryption word.
+        supports_encryption: true, // C3/C5 ROMs take a fifth, zero encryption word.
     }
 }
 
@@ -214,8 +217,8 @@ fn flash_data(block: &[u8], sequence: u32) -> Command<'_> {
     }
 }
 
-fn rom_erase(flasher: &mut Flasher, address: u32, size: u32) -> Result<()> {
-    check_range(address, size)?;
+fn rom_erase(flasher: &mut Flasher, flash_size: u32, address: u32, size: u32) -> Result<()> {
+    check_range(flash_size, address, size)?;
     // FLASH_BEGIN completes the full ROM hardware erase before returning.
     // The ROM has no intermediate progress events, so show elapsed time only.
     let mut progress = Progress::new(
@@ -239,9 +242,9 @@ fn rom_erase(flasher: &mut Flasher, address: u32, size: u32) -> Result<()> {
 ///
 /// Every region is begun and written on the *same* ROM connection, in caller
 /// order. In particular, the signed second-stage bootloader is written last.
-fn write_segments(flasher: &mut Flasher, regions: &[(u32, &[u8])]) -> Result<()> {
+fn write_segments(flasher: &mut Flasher, flash_size: u32, regions: &[(u32, &[u8])]) -> Result<()> {
     for (address, bytes) in regions.iter().copied() {
-        check_write(address, bytes)?;
+        check_write(flash_size, address, bytes)?;
         let size = u32::try_from(bytes.len()).context("ROM image too large")?;
         let erase_size = size.next_multiple_of(SECTOR_SIZE);
         let blocks = size.div_ceil(ROM_BLOCK_SIZE);
@@ -323,7 +326,7 @@ fn finish(flasher: Flasher, port: &str, monitor: bool) -> Result<()> {
 }
 
 /// Flash one or more regions in the supplied order, in one ROM session.
-pub fn write_flash(regions: &[(u32, &Path)], monitor: bool) -> Result<()> {
+pub fn write_flash(board: &Board, regions: &[(u32, &Path)], monitor: bool) -> Result<()> {
     ensure!(!regions.is_empty(), "no flash regions");
     ensure!(
         !monitor || regions.len() == 1,
@@ -334,7 +337,7 @@ pub fn write_flash(regions: &[(u32, &Path)], monitor: bool) -> Result<()> {
         .iter()
         .map(|&(address, path)| -> Result<_> {
             let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-            check_write(address, &bytes)?;
+            check_write(board.flash_size, address, &bytes)?;
             Ok((address, bytes))
         })
         .collect::<Result<_>>()?;
@@ -342,37 +345,61 @@ pub fn write_flash(regions: &[(u32, &Path)], monitor: bool) -> Result<()> {
         .iter()
         .map(|(address, bytes)| (*address, bytes.as_slice()))
         .collect();
-    let (mut flasher, port) = connect_rom()?;
-    write_segments(&mut flasher, &segments)?;
+    let (mut flasher, port) = connect_rom(board)?;
+    write_segments(&mut flasher, board.flash_size, &segments)?;
     finish(flasher, &port, monitor)
 }
 
 /// Erase every sector in a region using ROM FLASH_BEGIN alone.
-pub fn erase_region(address: u32, size: u32) -> Result<()> {
-    check_range(address, size)?;
-    let (mut flasher, port) = connect_rom()?;
-    rom_erase(&mut flasher, address, size)?;
+pub fn erase_region(board: &Board, address: u32, size: u32) -> Result<()> {
+    check_range(board.flash_size, address, size)?;
+    let (mut flasher, port) = connect_rom(board)?;
+    rom_erase(&mut flasher, board.flash_size, address, size)?;
     finish(flasher, &port, false)
 }
 
 /// Erase the entire MCUboot slot, then write its signed image without an
 /// intervening reset; the rest of the slot must remain erased.
-pub fn replace_region(address: u32, slot_size: u32, signed: &[u8], monitor: bool) -> Result<()> {
-    check_range(address, slot_size)?;
-    check_write(address, signed)?;
+pub fn replace_region(
+    board: &Board,
+    address: u32,
+    slot_size: u32,
+    signed: &[u8],
+    monitor: bool,
+) -> Result<()> {
+    check_range(board.flash_size, address, slot_size)?;
+    check_write(board.flash_size, address, signed)?;
     ensure!(
         signed.len() <= slot_size as usize,
         "signed image exceeds application slot"
     );
-    let (mut flasher, port) = connect_rom()?;
-    rom_erase(&mut flasher, address, slot_size)?;
-    write_segments(&mut flasher, &[(address, signed)])?;
+    let (mut flasher, port) = connect_rom(board)?;
+    rom_erase(&mut flasher, board.flash_size, address, slot_size)?;
+    write_segments(&mut flasher, board.flash_size, &[(address, signed)])?;
     finish(flasher, &port, monitor)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FLASH_SIZE: u32 = crate::board::ESP32C3_SUPERMINI.flash_size;
+
+    fn check_range(offset: u32, size: u32) -> Result<()> {
+        super::check_range(FLASH_SIZE, offset, size)
+    }
+
+    fn check_write(offset: u32, bytes: &[u8]) -> Result<()> {
+        super::check_write(FLASH_SIZE, offset, bytes)
+    }
+
+    #[test]
+    fn eight_mib_board_accepts_upper_flash() {
+        let size = crate::board::ESP32C5_DEVKITC_1.flash_size;
+        assert!(super::check_range(size, 0x42f000, 0x3b9000).is_ok());
+        assert!(super::check_range(FLASH_SIZE, 0x42f000, 0x3b9000).is_err());
+        assert!(super::check_write(size, size - SECTOR_SIZE, &[0]).is_ok());
+    }
 
     #[test]
     fn erase_rejects_partial_or_overflowing_regions_before_serial_io() {

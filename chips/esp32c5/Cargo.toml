@@ -1,0 +1,10 @@
+[package]
+name = "microtun-boot-chip-esp32c5"
+description = "ESP32-C5 hardware and microtun boot platform ABI constants"
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true

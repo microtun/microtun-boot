@@ -80,7 +80,10 @@ pub(super) fn read() -> Result<&'static Partitions> {
 }
 
 fn load() -> Result<Partitions> {
-    let layout = microtun_boot_tools_esp::layout::default_layout().map_err(Error::external)?;
+    let layout = microtun_boot_tools_esp::layout::default_layout(
+        &microtun_boot_tools_esp::board::ESP32C3_SUPERMINI,
+    )
+    .map_err(Error::external)?;
     let bytes = layout.binary().map_err(Error::external)?;
     Partitions::from_bytes(bytes, layout.offset)
 }

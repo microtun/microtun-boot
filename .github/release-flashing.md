@@ -5,7 +5,7 @@ Install Rust/Cargo and Git. Make sure Cargo-installed binaries are on your `PATH
 
 Install the flashing tool for your board directly from **this release's tag**; no repository checkout is needed. The commands in the published release notes already use the correct tag.
 
-**ESP32-C3 SuperMini:**
+**ESP32-C3 SuperMini and ESP32-C5-DevKitC-1:**
 
 ```sh
 cargo install --locked --git https://github.com/microtun/microtun-boot.git \
@@ -31,11 +31,23 @@ Download the attached `.bin` files. Choose `dev` or `release` to match the devic
 PROFILE=dev  # or release
 export ESPPORT=/dev/ttyACM0   # change to your serial port
 export MICROTUN_BOOT_OTP_BURN=YES
-microtun-boot-tools-esp flash-bootloader --signed-bin \
+microtun-boot-tools-esp --board esp32c3-supermini flash-bootloader --signed-bin \
   "esp32c3-supermini-${PROFILE}-boot-chain.sbv2.bin"
 ```
 
 The complete signed image (ESP-IDF second stage, partition table, and signed microtun boot) is verified and written at `0x0`. It does not re-sign or rebuild anything.
+
+**ESP32-C5-DevKitC-1** — Connect the board through its **ESP32-C5 USB** connector (USB-Serial-JTAG, not the UART one) and set your serial port:
+
+```sh
+PROFILE=dev  # or release
+export ESPPORT=/dev/ttyACM0   # change to your serial port
+export MICROTUN_BOOT_OTP_BURN=YES
+microtun-boot-tools-esp --board esp32c5-devkitc-1 flash-bootloader --signed-bin \
+  "esp32c5-devkitc-1-${PROFILE}-boot-chain.sbv2.bin"
+```
+
+The complete signed image is verified and written at `0x2000`, where the ESP32-C5 ROM loads the second stage. It does not re-sign or rebuild anything.
 
 **RP2350 Pico 2** — Connect an SWD probe:
 

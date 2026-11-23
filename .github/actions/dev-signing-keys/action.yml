@@ -22,7 +22,8 @@ runs:
         echo "$bin" >> "$GITHUB_PATH"
 
     # The key IDs are the defaults in microtun-boot-build (FIRMWARE_DEV_KEY_ID)
-    # and the board tool crates (DEV_KEY). Use these same direct commands locally.
+    # and the board tools (each ESP board's dev_key, the RP tool's DEV_KEY).
+    # Use these same direct commands locally.
     - name: Create development keys
       shell: bash
       run: |
@@ -32,5 +33,6 @@ runs:
         signer="$RUNNER_TEMP/microtun-signer-bin/microtun-signer"
         "$signer" local init --key-id microtun-boot-local-p256 --algorithm p256
         "$signer" local init --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --algorithm rsa-pss
+        "$signer" local init --key-id microtun-boot-local-esp32c5-sbv2-rsa3072 --algorithm rsa-pss
         "$signer" local init --key-id microtun-boot-local-rp2350-rom-secp256k1 --algorithm secp256k1
         "$signer" local list

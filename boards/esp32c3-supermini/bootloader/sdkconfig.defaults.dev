@@ -19,6 +19,8 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 # externally using the SAME provisioned RSA-3072 Secure Boot V2 key.
 CONFIG_SECURE_BOOT=y
 CONFIG_SECURE_BOOT_V2_ENABLED=y
+# RSA-3072 (PSS), the scheme microtun boot's boot-chain tools sign with.
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
 # CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set
 
 # WARNING: ESP-IDF v5.5.5 may irreversibly program security eFuses on first

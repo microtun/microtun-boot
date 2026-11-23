@@ -5,8 +5,9 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 //! ESP chip glue shared by the bootloader and by applications doing OTA.
 //!
-//! Built for exactly one chip, selected by a Cargo feature (`esp32c3`). The
-//! chip's facts are in [`chip`]; nothing in this crate is board-specific.
+//! Built for exactly one chip, selected by a Cargo feature (`esp32c3` or
+//! `esp32c5`). The chip's facts are in [`chip`]; nothing in this crate is
+//! board-specific.
 //!
 //! * Slots are found in the ESP-IDF partition table by label:
 //!   [`PRIMARY_LABEL`], [`SECONDARY_LABEL`] and (for swap mode)
@@ -37,8 +38,8 @@ pub mod boot_info;
 pub mod boot_runtime;
 pub mod chip;
 pub use chip::mmu;
-/// Clock glitch detector reset enable and verification.
-#[allow(unsafe_code)] // PAC field without a safe setter (FIB_SEL).
+/// Glitch detector reset enable and verification.
+#[allow(unsafe_code)] // PAC fields without a safe setter (FIB selections).
 pub mod glitch;
 /// RAM handoff to the application: plan, fault-hardened confirmation, jump.
 #[cfg(feature = "boot-runtime")]

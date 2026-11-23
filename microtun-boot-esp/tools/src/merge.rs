@@ -1,9 +1,10 @@
-//! Merge flash regions into one raw image, as a single `write-bin` at 0x0.
+//! Merge flash regions into one raw image, as a single `write-bin`.
 //!
 //! Bytes not covered by a region are 0xFF, the NOR flash erased state, so
 //! writing the merged image leaves the gaps exactly as erasing them would.
+//! Region addresses are relative to the start of the merged image.
+use crate::board::Board;
 use anyhow::{Result, ensure};
-use microtun_boot_layout_esp32c3_supermini as chip;
 
 /// Erased flash byte.
 pub const ERASED: u8 = 0xff;
@@ -12,12 +13,12 @@ pub const ERASED: u8 = 0xff;
 ///
 /// Regions must start on an erase sector, be non-empty, fit inside the image
 /// and not overlap one another; order does not matter.
-pub fn merge(size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
+pub fn merge(board: &Board, size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
+    let erase = board.chip.erase_size;
     ensure!(!regions.is_empty(), "no regions to merge");
     ensure!(
-        size > 0 && size.is_multiple_of(chip::ERASE_SIZE) && size <= chip::FLASH_SIZE,
-        "merged image size {size:#x} must be a non-zero multiple of {:#x} within flash",
-        chip::ERASE_SIZE
+        size > 0 && size.is_multiple_of(erase) && size <= board.flash_size,
+        "merged image size {size:#x} must be a non-zero multiple of {erase:#x} within flash"
     );
     let mut spans: Vec<(u64, u64)> = Vec::with_capacity(regions.len());
     for &(address, bytes) in regions {
@@ -25,7 +26,7 @@ pub fn merge(size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
         let end = start + bytes.len() as u64;
         ensure!(!bytes.is_empty(), "empty region at {address:#x}");
         ensure!(
-            address.is_multiple_of(chip::ERASE_SIZE),
+            address.is_multiple_of(erase),
             "region at {address:#x} is not sector aligned"
         );
         ensure!(
@@ -48,8 +49,12 @@ pub fn merge(size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::board::ESP32C3_SUPERMINI;
 
-    const S: u32 = chip::ERASE_SIZE;
+    const S: u32 = 0x1000;
+    fn merge(size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
+        super::merge(&ESP32C3_SUPERMINI, size, regions)
+    }
 
     #[test]
     fn places_regions_and_fills_gaps_with_erased_bytes() {
@@ -81,6 +86,6 @@ mod tests {
         // Bad image sizes.
         assert!(merge(0, &[(0, &[0][..])]).is_err());
         assert!(merge(S + 1, &[(0, &[0][..])]).is_err());
-        assert!(merge(chip::FLASH_SIZE + S, &[(0, &[0][..])]).is_err());
+        assert!(merge(ESP32C3_SUPERMINI.flash_size + S, &[(0, &[0][..])]).is_err());
     }
 }
