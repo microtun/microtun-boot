@@ -31,6 +31,7 @@ pub static BOARD: Board = Board {
     chip: "RP2350",
     env_prefix: "MICROTUN_BOOT_RP235X",
     target: "thumbv8m.main-none-eabihf",
+    flash_size: layout::FLASH_SIZE as usize,
     console: Console {
         port_hint: "the adapter's UART port (/dev/serial/by-id/...)",
         open: crate::dut::open_serial,

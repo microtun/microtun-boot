@@ -45,6 +45,20 @@ jobs:
         run: cargo clippy --all-targets --locked -- -D warnings
       - name: Clippy (QEMU regression harness)
         run: cargo clippy -p microtun-boot-hil --all-targets --features qemu,regression --locked -- -D warnings
+      # Physical ESP suites need a board; their harness and scenario binaries
+      # are still linted, and the host-side unit tests (partition tables,
+      # fixture composition, eFuse decoding, worker arguments) run here.
+      - name: Clippy (ESP HIL harness and scenarios)
+        run: |
+          cargo clippy -p microtun-boot-hil --all-targets \
+            --features esp32c3-supermini,esp32c5-devkitc-1 --locked -- -D warnings
+          cargo clippy -p microtun-boot-hil --all-targets \
+            --features esp32c3-supermini,smoke,security-counter --locked -- -D warnings
+          # TODO(esp32c5): restore security-counter after the eFuse fix.
+          cargo clippy -p microtun-boot-hil --all-targets \
+            --features esp32c5-devkitc-1,smoke --locked -- -D warnings
+      - name: ESP HIL harness unit tests (no hardware)
+        run: cargo test -p microtun-boot-hil --lib --bins --features esp32c3-supermini,esp32c5-devkitc-1 --locked
 
   security:
     name: Rust dependency security

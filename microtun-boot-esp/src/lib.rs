@@ -50,6 +50,9 @@ pub mod loader_abi;
 pub mod loader_plan;
 pub use boot_info::BootInfo;
 mod policy;
+// TODO(esp32c5): re-enable after the esp-hal 1.2.2 C5 eFuse issue is fixed
+// and the retained implementation is verified on hardware.
+#[cfg(feature = "esp32c3")]
 #[allow(unsafe_code)] // eFuse programming registers.
 pub mod security_counter;
 pub mod watchdog;

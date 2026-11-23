@@ -20,18 +20,22 @@ persistent problem looks like a reboot loop. An image that fails verification
 is never booted.
 
 > **Status:** the ESP32-C5 port builds and its images, layout and boot chain
-> pass the host-side checks, but the hardware-in-the-loop suite does not
-> cover this board yet. Validate it on an expendable board before relying on
-> it.
+> pass the host-side checks. The
+> [hardware-in-the-loop suite](#hardware-in-the-loop-tests) supports this
+> board; run it on an expendable board before relying on the port.
 
 ## Requirements and limitations
 
 - ESP32-C5 **rev v1.0 (ECO2) or later**, the minimum ESP-IDF v5.5 supports.
-  Both ESP32-C5-DevKitC-1 revisions (v1.1 with an N8R4 module, v1.2 with N8R8)
-  have **8 MiB** of flash.
+  The generic `esp32c5-devkitc-1` target requires **at least 4 MiB** of flash
+  and uses only the first 4 MiB. Larger-flash variants (e.g. N8R4 and N8R8)
+  use the same layout; their upper flash is outside this target's layout.
 - Connect the board through the port labelled **ESP32-C5 USB** (the chip's
-  native USB-Serial-JTAG), not the USB-to-UART port: the tools only flash and
-  monitor over USB-Serial-JTAG, and microtun boot logs there.
+  native USB-Serial-JTAG), not the USB-to-UART port: the tools auto-detect and
+  monitor over USB-Serial-JTAG, and microtun boot logs there. The one
+  exception is a chip in **Secure Download Mode**, which must be flashed
+  through the USB-to-UART port; see
+  [Secure Download Mode](#secure-download-mode).
 - Secure Boot V2 is always enabled with the RSA-3072 scheme; the C5's ECDSA
   scheme is not used. There is no unsigned boot chain.
 - Flash encryption and PSRAM are not supported by microtun boot, and ROM
@@ -40,9 +44,10 @@ is never booted.
   - The C5 has no clock glitch detector. microtun boot re-asserts and checks
     the **power (voltage) glitch** reset ESP-IDF's second stage enables
     instead.
-  - esp-hal has no TRNG entropy source for the C5, so the random delays in
-    front of the hardened checks come from the hardware RNG **without** a
-    guaranteed noise source. Treat the jitter as weaker than on the C3. See
+  - esp-hal 1.2.2 has no TRNG entropy source for the C5. Random delays are
+    disabled; the hardened signature and load-plan checks still run, without
+    jitter. TODO(esp32c5): restore jitter once a real TRNG source is supported
+    and verified. See
     [fault-injection hardening](../../THREAT-MODEL.md#fault-injection-hardening).
 - The bootloader is built with esp-hal's `enable-pmp` option **off**
   (`ESP_HAL_CONFIG_ENABLE_PMP=false` in `.cargo/config.toml`): esp-hal would
@@ -60,15 +65,23 @@ Defined in `layout/partitions.csv`:
 | ESP-IDF second stage | `0x2000` | ≤ 56 KiB |
 | Partition table | `0x10000` | 4 KiB |
 | `microtun-boot` | `0x20000` | 256 KiB |
-| `image-0` (primary) | `0x6F000` | 3812 KiB |
-| `image-1` (secondary) | `0x42F000` | 3812 KiB |
-| `image-scratch` | `0x7E8000` | 64 KiB |
-| `storage` (yours) | `0x7F8000` | 32 KiB |
+| `image-0` (primary) | `0x6F000` | 1764 KiB |
+| `image-1` (secondary) | `0x22F000` | 1764 KiB |
+| `image-scratch` | `0x3E8000` | 64 KiB |
+| `storage` (yours) | `0x3F8000` | 32 KiB |
 
 microtun boot finds slots by label at runtime, so a changed partition table needs
-no bootloader rebuild. Slots must start at `…F000` so the image after the
-4 KiB MCUboot header lands on a 64 KiB MMU page. Check a layout with
-`microtun-boot-tools-esp --board esp32c5-devkitc-1 layout`.
+no third-stage rebuild if the flash geometry is unchanged. Slots must start at
+`…F000` so the image after the 4 KiB MCUboot header lands on a 64 KiB MMU page.
+Check a layout with `microtun-boot-tools-esp --board esp32c5-devkitc-1 layout`.
+
+**Migrating from the former 8 MiB layout:** back up application-owned storage
+and any images you need before flashing. Rebuild the ESP-IDF second stage
+with the 4 MiB configuration (do not reuse an old `ESP_IDF_BOOTLOADER_BIN`),
+flash the new signed boot chain/partition table and install freshly signed
+application images for the new slot size. Do not attempt an in-place OTA
+migration from the old layout; slot sizes, the secondary slot and storage
+positions have changed. Keep the existing enrolled Secure Boot V2 key.
 
 ## Setup
 
@@ -146,7 +159,7 @@ must never ship. An application must:
 | Variable | Purpose |
 |---|---|
 | `MICROTUN_BOOT_ESP_BOARD` | Board for `microtun-boot-tools-esp` when `--board` is absent |
-| `ESPPORT` | Serial port of the **ESP32-C5 USB** connector; auto-detected if only one ESP USB-Serial-JTAG device is attached |
+| `ESPPORT` | Serial port of the **ESP32-C5 USB** connector; auto-detected if only one ESP USB-Serial-JTAG device is attached. In Secure Download Mode, set it to the **USB-to-UART** port instead (never auto-detected) |
 | `SLOT=image-1` | Write the secondary slot instead of the primary (see below) |
 | `MICROTUN_BOOT_OTP_BURN=YES` | Required to flash the boot chain |
 | `NO_FLASH=1` | Build and sign only |
@@ -156,7 +169,7 @@ must never ship. An application must:
 | Variable | Purpose |
 |---|---|
 | `IMAGE_VERSION` | Application image version (default `0.0.0`) |
-| `SECURITY_COUNTER` | Anti-rollback epoch of the image (default `0`; see below) |
+| `SECURITY_COUNTER` | Signed metadata only on C5 (default `0`; not enforced) |
 | `MICROTUN_SIGNER_URL` | `local:` (default) or a signer service |
 | `MICROTUN_BOOT_KEY_ID`, `ESP_SBV2_KEY_ID` | Application (P-256) and boot-chain (RSA-3072) key IDs |
 | `MICROTUN_BOOT_PUBKEYS` | Application public keys trusted by microtun boot (default: the local application signing key) |
@@ -177,17 +190,67 @@ by the flash tool.
 For production, use a signer service with your own key IDs and set
 `MICROTUN_BOOT_PUBKEYS` to your pinned application key.
 
+### Secure Download Mode
+
+Neither bootloader profile enables Secure Download Mode, but a chip may have
+it from a manually burned `ENABLE_SECURITY_DOWNLOAD` eFuse (for example, at
+manufacture). On such a chip, **flash through the USB-to-UART port**, not the
+ESP32-C5 USB port.
+
+The reason is the RTC (LP) watchdog. microtun boot arms it for 15 s, and a
+USB-Serial-JTAG reset into the ROM downloader leaves it running. Normally the
+flash tool turns it off with `WRITE_REG` after connecting. Secure Download
+Mode rejects `WRITE_REG`, so the tool can only warn, and any write longer than
+the remaining watchdog time is cut off by a chip reset. The bridge resets the
+chip through `EN`, which also resets the watchdog.
+
+```sh
+export ESPPORT=/dev/ttyUSB0   # the USB-to-UART port; it is never auto-detected
+```
+
+The UART runs at 115200 baud, so large writes are much slower than over
+USB-Serial-JTAG. microtun boot still logs on the ESP32-C5 USB port, so keep it
+connected if you want to watch the boot.
+
 ## Security counter
 
-The rollback floor lives in eFuse `BLOCK0.SECURE_VERSION` (bits 137–145),
-which has only **9 epochs** on the ESP32-C5. Raising `SECURITY_COUNTER` and
-booting that image permanently blocks older images, so reserve it for
-security fixes. ESP-IDF's own app anti-rollback must stay disabled: microtun
-boot owns the `SECURE_VERSION` eFuse and enforces it against the MCUboot
-image header.
+**Temporarily disabled on ESP32-C5** due to the eFuse issue with esp-hal
+1.2.2. microtun boot does not read or burn a hardware rollback floor, require
+`SEC_CNT`, or report a floor in boot information. Signing still includes
+`SECURITY_COUNTER` by default for image-format compatibility; increasing it
+has no rollback effect. The ordinary version-based downgrade-prevention
+feature remains enabled by default, but is not hardware anti-rollback.
+Older signed images may be booted after a flash rewrite. Do not rely on this
+board for hardware rollback resistance.
+
+TODO(esp32c5): revisit when the HAL/eFuse issue is fixed. Reserve eFuse
+`BLOCK0.SECURE_VERSION` (bits 137–145, **9 epochs**) for future support.
+Keep ESP-IDF's own app anti-rollback disabled. On expendable hardware verify
+reads, burns, read-back, power-loss recovery and rejection of older epochs;
+then restore the policy requirement, store, final handoff check, boot-info
+floor and HIL suite. Restore TRNG jitter once a real entropy source is
+available and tested.
 
 ## Hardware-in-the-loop tests
 
-[`microtun-boot-hil`](../../testing/microtun-boot-hil/README.md) does not support
-this board yet. `boards/esp32c5-devkitc-1/firmware` already speaks the same
-`@fbt` test-hook protocol as the ESP32-C3 firmware.
+> Use a **dedicated, expendable board.** The tests sign with the development
+> RSA key and, on a blank chip, enroll it permanently with no confirmation.
+
+Connect the **ESP32-C5 USB** port (not the USB-to-UART port), then:
+
+```sh
+export MICROTUN_BOOT_ESP_PORT=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_YOUR_DEVICE_ID
+cargo test -p microtun-boot-hil --features esp32c5-devkitc-1,smoke -- --test-threads=1
+```
+
+Each test composes a complete 4 MiB fixture and writes `0x2000..0x400000`
+(4,186,112 bytes) through the ROM loader. The key-manager sectors below
+`0x2000` and any physical flash beyond 4 MiB are left alone. Raise
+`MICROTUN_BOOT_ESP_FLASH_TIMEOUT_SECS` (default 600) if a write times out.
+The second stage is built with Docker as for a normal build, or taken from
+`ESP_IDF_BOOTLOADER_BIN` (built for the 4 MiB layout).
+
+Use the `dev` profile for the HIL setup. C5 smoke fixtures use counter `0`
+without reading eFuses over JTAG. The `security-counter` suite is temporarily
+excluded on C5 and will not consume any `SECURE_VERSION` epochs. See
+[`microtun-boot-hil`](../../testing/microtun-boot-hil/README.md).

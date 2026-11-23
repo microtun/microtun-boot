@@ -9,8 +9,8 @@ rust-version.workspace = true
 publish = false
 
 # Shared harness (nested cargo builds of the board binaries, imgtool signing,
-# 4 MiB flash composition over microtun-boot-core, the RP2350 LZ4 restore fixture
-# protocol, ESP32-C3 Rust espflash fixture flashing, the reset worker and console
+# whole-flash composition over microtun-boot-core, the RP2350 LZ4 restore fixture
+# protocol, ESP32 shared ROM-command fixture flashing, the reset worker and console
 # capture), one module per board
 # (console, optional RP2350 probe attach, executable format, layout) and the scenarios in
 # `tests/`: a short physical-board smoke binary and detailed QEMU regressions.
@@ -19,6 +19,7 @@ publish = false
 #
 #   cargo test -p microtun-boot-hil --features qemu,regression
 #   cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
+#   cargo test -p microtun-boot-hil --features esp32c5-devkitc-1,smoke -- --test-threads=1
 #   cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
 #   cargo test -p microtun-boot-hil --features esp32c3-supermini,security-counter
 #   cargo test -p microtun-boot-hil --features qemu,security-counter
@@ -32,7 +33,10 @@ smoke = []
 regression = ["security-counter"]
 # Opt-in anti-rollback suite: permanently advances OTP/eFuse on physical boards.
 security-counter = []
-esp32c3-supermini = ["dep:esp-idf-part", "dep:espflash", "dep:probe-rs", "dep:probe-rs-espressif", "dep:microtun-boot-layout-esp32c3-supermini", "dep:microtun-boot-tools-esp"]
+esp32c3-supermini = ["esp", "dep:microtun-boot-layout-esp32c3-supermini"]
+esp32c5-devkitc-1 = ["esp", "dep:microtun-boot-layout-esp32c5-devkitc-1"]
+# Shared ESP back-end, enabled by the ESP board features; not a target itself.
+esp = ["dep:esp-idf-part", "dep:espflash", "dep:probe-rs", "dep:probe-rs-espressif", "dep:microtun-boot-tools-esp"]
 rp2350-pico2 = ["dep:probe-rs", "dep:microtun-boot-layout-rp2350-pico2", "dep:lz4_flex", "dep:microtun-boot-tools-rp"]
 qemu = ["dep:serde_json", "dep:microtun-boot-layout-qemu", "dep:microtun-boot-tools-qemu"]
 
@@ -56,14 +60,15 @@ serde_json = { version = "1", optional = true }
 # Board layout crates: chip facts plus each test board's own values.
 microtun-boot-layout-qemu = { path = "../../boards/qemu/layout", optional = true }
 microtun-boot-layout-esp32c3-supermini = { path = "../../boards/esp32c3-supermini/layout", optional = true }
+microtun-boot-layout-esp32c5-devkitc-1 = { path = "../../boards/esp32c5-devkitc-1/layout", optional = true }
 microtun-boot-layout-rp2350-pico2 = { path = "../../boards/rp2350-pico2/layout", optional = true }
-# ESP32-C3: upstream ESP image conversion, SBv2 secure padding, and ROM
-# flashing in a supervised Rust worker; HIL uses the board's own
+# ESP32 (C3, C5): upstream ESP image conversion, SBv2 secure padding, and ROM
+# flashing via the tools' ROM-command writer in a supervised Rust worker; HIL uses the board's own
 # Rust boot-stage signer instead of esptool/espsecure.
 espflash = { workspace = true, optional = true }
 esp-idf-part = { version = "0.6", optional = true }
 
-# One worker dispatches to the ESP32-C3 ROM or RP2350 SWD transport.
+# One worker dispatches to the ESP32 ROM loader or RP2350 SWD transport.
 # It is always built beside HIL integration tests; only its enabled board
 # subcommands are compiled in.
 [[bin]]

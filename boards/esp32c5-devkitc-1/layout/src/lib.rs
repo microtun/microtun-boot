@@ -4,9 +4,9 @@
 
 pub use microtun_boot_chip_esp32c5::*;
 
-/// Capacity of the flash installed on this board (not a chip property): the
-/// ESP32-C5-WROOM-1 on both board revisions (N8R4, N8R8) has 8 MiB.
-pub const FLASH_SIZE: u32 = 0x0080_0000;
+/// Flash capacity used by the generic board target (not a chip property).
+/// Use the first 4 MiB on variants with at least that much physical flash.
+pub const FLASH_SIZE: u32 = 0x0040_0000;
 
 const _: () = {
     assert!(ERASE_SIZE > 0 && FLASH_SIZE.is_multiple_of(ERASE_SIZE));

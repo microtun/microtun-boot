@@ -1,19 +1,18 @@
 //! Opt-in anti-rollback check. Physical boards consume one OTP/eFuse epoch.
+//! TODO(esp32c5): restore this suite when the C5 eFuse counter is supported.
 #![cfg(all(
     feature = "security-counter",
-    any(
-        feature = "esp32c3-supermini",
-        feature = "rp2350-pico2",
-        feature = "qemu"
-    )
+    not(feature = "esp32c5-devkitc-1"),
+    any(feature = "esp", feature = "rp2350-pico2", feature = "qemu")
 ))]
 
 mod common;
 
 use common::*;
 
-#[cfg(feature = "esp32c3-supermini")]
-const CAPACITY: u32 = 16;
+// 16 epochs on the ESP32-C3.
+#[cfg(feature = "esp")]
+const CAPACITY: u32 = SECURITY_COUNTER_CAPACITY;
 #[cfg(feature = "rp2350-pico2")]
 const CAPACITY: u32 = 504;
 #[cfg(feature = "qemu")]
@@ -57,7 +56,7 @@ fn expect_idle(dut: &Dut, from: usize, version: &str) {
 /// fresh OTP/eFuse bit. Abort before signing or upgrading if fuses are full.
 #[test]
 fn confirmed_epoch_survives_flash_rewrite_and_rejects_rollback() {
-    #[cfg(any(feature = "esp32c3-supermini", feature = "rp2350-pico2"))]
+    #[cfg(any(feature = "esp", feature = "rp2350-pico2"))]
     let _board_test = common::lock_physical_board();
     // One explicit virtual board retains its counter between QEMU processes.
     // Ordinary Dut::boot calls deliberately create isolated virtual boards.

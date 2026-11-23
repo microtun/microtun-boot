@@ -57,7 +57,8 @@ attacker model described there.
 **In scope**, for example:
 
 - executing an image that is unsigned, signed by an untrusted key, bound to the
-  wrong VID/CID, or below the hardware security counter floor;
+  wrong VID/CID, or below the hardware security counter floor where supported
+  (currently not ESP32-C5; see L8b in the threat model);
 - accepting security-relevant TLVs (`SEC_CNT`, VID, CID) from outside the
   protected area, or any unlisted unprotected TLV;
 - crafted images, segment plans or vector tables that make microtun boot load

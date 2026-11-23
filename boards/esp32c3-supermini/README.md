@@ -21,7 +21,9 @@ is never booted.
 ## Requirements and limitations
 
 - ESP32-C3 **rev v0.3 (ECO3) or later** with **4 MiB** flash, connected
-  through its native USB-Serial-JTAG port.
+  through its native USB-Serial-JTAG port. A chip in **Secure Download Mode**
+  must be flashed through a USB-to-UART adapter instead; see
+  [Secure Download Mode](#secure-download-mode).
 - Secure Boot V2 is always enabled; there is no unsigned boot chain.
 - Flash encryption is not supported, and ROM download mode stays enabled.
 - Only the clock glitch detector is used, and the ROM runs without it. See
@@ -121,7 +123,7 @@ must never ship. An application must:
 | Variable | Purpose |
 |---|---|
 | `MICROTUN_BOOT_ESP_BOARD` | Board for `microtun-boot-tools-esp` when `--board` is absent |
-| `ESPPORT` | Serial port; auto-detected if only one ESP USB-Serial-JTAG device is attached |
+| `ESPPORT` | Serial port; auto-detected if only one ESP USB-Serial-JTAG device is attached. In Secure Download Mode, set it to a USB-to-UART adapter instead (never auto-detected) |
 | `SLOT=image-1` | Write the secondary slot instead of the primary (see below) |
 | `MICROTUN_BOOT_OTP_BURN=YES` | Required to flash the boot chain |
 | `NO_FLASH=1` | Build and sign only |
@@ -152,6 +154,33 @@ by the flash tool.
 For production, use a signer service with your own key IDs and set
 `MICROTUN_BOOT_PUBKEYS` to your pinned application key.
 
+### Secure Download Mode
+
+Neither bootloader profile enables Secure Download Mode, but a chip may have
+it from a manually burned `ENABLE_SECURITY_DOWNLOAD` eFuse (for example, at
+manufacture). On such a chip, **flash through a USB-to-UART adapter**, not the
+native USB port.
+
+The reason is the RTC watchdog. microtun boot arms it for 15 s, and a
+USB-Serial-JTAG reset into the ROM downloader leaves it running. Normally the
+flash tool turns it off with `WRITE_REG` after connecting. Secure Download
+Mode rejects `WRITE_REG`, so the tool can only warn, and any write longer than
+the remaining watchdog time is cut off by a chip reset. A reset through `EN`
+also resets the watchdog.
+
+The SuperMini has no on-board USB-to-UART bridge, so use an external 3.3 V
+adapter on UART0: adapter TX to GPIO20 (U0RXD), adapter RX to GPIO21
+(U0TXD), and GND. Unless the adapter's DTR/RTS drive `EN` and GPIO9, enter
+download mode by hand: hold **BOOT** (GPIO9), press and release **RESET**,
+then release **BOOT**.
+
+```sh
+export ESPPORT=/dev/ttyUSB0   # the adapter; it is never auto-detected
+```
+
+The UART runs at 115200 baud, so large writes are much slower than over
+USB-Serial-JTAG.
+
 ## Security counter
 
 The rollback floor lives in eFuse `BLOCK0.SECURE_VERSION`, which has only
@@ -167,7 +196,7 @@ image header.
 > RSA key and, on a blank chip, enroll it permanently with no confirmation.
 
 ```sh
-export MICROTUN_BOOT_ESP32C3_PORT=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_YOUR_DEVICE_ID
+export MICROTUN_BOOT_ESP_PORT=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_YOUR_DEVICE_ID
 cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
 ```
 

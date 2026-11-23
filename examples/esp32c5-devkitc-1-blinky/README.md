@@ -77,10 +77,10 @@ followed by `mark_for_test()` and a reset. The new image then boots as a trial
 and flashes amber until it confirms itself. This example has no update
 transport.
 
-> **Anti-rollback:** `SECURITY_COUNTER` (default `0`) is independent of
-> `IMAGE_VERSION`. Booting an image with a higher counter permanently blocks
-> older images, and the ESP32-C5 has only 9 epochs. Leave it at `0` unless you
-> are testing that policy.
+> **Anti-rollback (temporarily disabled):** `SECURITY_COUNTER` (default `0`) is
+> signed metadata only on C5 with esp-hal 1.2.2. It does not block older
+> images. Leave it at `0` until hardware rollback support returns; see the
+> [board README](../../boards/esp32c5-devkitc-1/README.md#security-counter).
 
 ## Use your own keys
 

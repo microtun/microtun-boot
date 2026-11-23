@@ -1,7 +1,7 @@
 //! The device under test: a physical board or an isolated QEMU guest.
 //!
-//! ESP32-C3 writes its full image with the Rust espflash worker, then resets over the
-//! USB CDC console. RP2350 uses a bounded `microtun-boot-flash` SWD worker for
+//! ESP32 boards (C3, C5) write their full image with the tools' ROM-command worker,
+//! then reset over the USB CDC console. RP2350 uses a bounded `microtun-boot-flash` SWD worker for
 //! fixture transport and probe resets. The worker exits before assertions so
 //! it cannot mask watchdog recovery.
 //!
@@ -20,10 +20,7 @@ use serialport::SerialPort;
 #[cfg(feature = "qemu")]
 use std::io::{BufRead, BufReader};
 
-use crate::{
-    Board, Error, NativeSerialPort,
-    flash::{FLASH_SIZE, FlashImage},
-};
+use crate::{Board, Error, NativeSerialPort, flash::FlashImage};
 
 pub const BAUD: u32 = 115_200;
 const READ_TIMEOUT: Duration = Duration::from_millis(50);
@@ -61,7 +58,7 @@ impl CapturedConsole {
         self.state.lock().unwrap().closed
     }
 
-    #[cfg(feature = "esp32c3-supermini")]
+    #[cfg(feature = "esp")]
     fn contains_from(&self, from: usize, pred: impl Fn(&str) -> bool) -> bool {
         self.state
             .lock()
@@ -114,7 +111,7 @@ impl CapturedConsole {
 /// Requests to the reader thread, which owns the port.
 enum Cmd {
     Stop,
-    #[cfg(feature = "esp32c3-supermini")]
+    #[cfg(feature = "esp")]
     Reset(mpsc::Sender<crate::Result<()>>),
 }
 
@@ -157,12 +154,12 @@ impl Dut {
         let var = board.env("PORT");
         let name =
             std::env::var(&var).map_err(|_| format!("set {var} to {}", board.console.port_hint))?;
-        // The Rust flasher needs exclusive use of ESP32-C3's USB CDC port.
+        // The Rust flasher needs exclusive use of an ESP's USB CDC port.
         // Open RP2350's independent UART before programming, but open the
-        // ESP32-C3 console only after the Rust flasher has exited.
-        #[cfg(feature = "esp32c3-supermini")]
-        let serial_flash = std::ptr::eq(board, &*crate::esp32c3::BOARD);
-        #[cfg(not(feature = "esp32c3-supermini"))]
+        // ESP console only after the Rust flasher has exited.
+        #[cfg(feature = "esp")]
+        let serial_flash = crate::esp::target_of(board).is_some();
+        #[cfg(not(feature = "esp"))]
         let serial_flash = false;
         let port = if serial_flash {
             None
@@ -184,7 +181,7 @@ impl Dut {
             #[cfg(feature = "qemu")]
             virtual_board: None,
         };
-        // The RP2350 worker pauses at a reset checkpoint; ESP32-C3 opens
+        // The RP2350 worker pauses at a reset checkpoint; an ESP opens
         // CDC after its flasher exits. Discard stale output at that point.
         let mut capture = Some((port, rx));
         program(board, &name, &flash.bytes(), || {
@@ -195,7 +192,7 @@ impl Dut {
     }
 
     /// Start the reader at the worker's reset checkpoint, before the device
-    /// reboots. ESP32-C3 must reopen CDC after flashing; RP2350 already has
+    /// reboots. An ESP must reopen CDC after flashing; RP2350 already has
     /// its independent UART handle.
     fn start_physical_console(
         &mut self,
@@ -213,8 +210,8 @@ impl Dut {
         port.clear(serialport::ClearBuffer::All)?;
         // Clone before moving the port into the reader. The reader must be
         // live before the CDC reset so the earliest boot messages are seen.
-        #[cfg(feature = "esp32c3-supermini")]
-        let mut boot_control = if std::ptr::eq(self.board, &*crate::esp32c3::BOARD) {
+        #[cfg(feature = "esp")]
+        let mut boot_control = if crate::esp::target_of(self.board).is_some() {
             Some(port.try_clone_native()?)
         } else {
             None
@@ -226,10 +223,13 @@ impl Dut {
             read_console(board, &name, port, board.console.open, &console, &rx)
         }));
         // RP2350 is reset by the probe worker after this callback returns.
-        #[cfg(feature = "esp32c3-supermini")]
+        #[cfg(feature = "esp")]
         if let Some(ref mut control) = boot_control {
-            eprintln!("[dut] exiting ESP32-C3 ROM download mode via USB-Serial/JTAG reset");
-            crate::esp32c3::boot_from_download(control)?;
+            eprintln!(
+                "[dut] exiting {} ROM download mode via USB-Serial/JTAG reset",
+                self.board.chip
+            );
+            crate::esp::boot_from_download(control)?;
         }
         Ok(())
     }
@@ -251,17 +251,20 @@ impl Dut {
         self.console
             .wait_from(from, timeout, |line| line.contains(needle))
             .ok_or_else(|| {
-                #[cfg(feature = "esp32c3-supermini")]
-                if std::ptr::eq(self.board, &*crate::esp32c3::BOARD)
+                #[cfg(feature = "esp")]
+                if crate::esp::target_of(self.board).is_some()
                     && needle == "@fbt hello"
                     && self.console.contains_from(from, |line| {
                         line.contains("waiting for download") || line.contains("DOWNLOAD(USB/UART")
                     })
                 {
-                    return "ESP32-C3 is still in ROM download mode after flashing; \
-                            release BOOT/GPIO9 (if held low), check reset control \
-                            lines, and perform an EN/power-cycle reset if needed"
-                        .into();
+                    return format!(
+                        "{} is still in ROM download mode after flashing; \
+                         release the BOOT button/strap (if held low), check reset \
+                         control lines, and perform an EN/power-cycle reset if needed",
+                        self.board.chip
+                    )
+                    .into();
                 }
                 format!("timed out waiting for {needle:?}").into()
             })
@@ -293,8 +296,8 @@ impl Dut {
         // Reset on the console reader thread: it owns the current USB CDC
         // handle, including after an autonomous reset re-enumerated the port.
         // No second serial open or worker process is needed.
-        #[cfg(feature = "esp32c3-supermini")]
-        if std::ptr::eq(self.board, &*crate::esp32c3::BOARD) {
+        #[cfg(feature = "esp")]
+        if crate::esp::target_of(self.board).is_some() {
             let (tx, rx) = mpsc::channel();
             self.cmds.send(Cmd::Reset(tx)).map_err(Error::external)?;
             rx.recv_timeout(Duration::from_secs(30))
@@ -407,25 +410,29 @@ fn probe_timeout(board: &Board, programming: bool) -> crate::Result<Duration> {
     })
 }
 
-/// Program one complete 4 MiB fixture. ESP32-C3 flashes with the Rust espflash worker,
-/// which exits before the console is opened. RP2350 uses a gated SWD worker
-/// to retain its probe session through reset.
+/// Program one complete fixture of the board's flash size. ESP boards flash
+/// with the shared ROM-command worker, which exits before the console is opened.
+/// RP2350 uses a gated SWD worker to retain its probe session through reset.
 fn program(
     board: &Board,
     _port: &str,
     bytes: &[u8],
     mut before_reset: impl FnMut() -> crate::Result<()>,
 ) -> crate::Result<()> {
-    if bytes.len() != FLASH_SIZE {
-        return Err("expected complete 4 MiB flash image".into());
+    if bytes.len() != board.flash_size {
+        return Err(format!(
+            "expected complete {} flash image",
+            crate::flash::describe_size(board.flash_size)
+        )
+        .into());
     }
     let inputs = tempfile::tempdir()?;
     let fixture = inputs.path().join("fixture.bin");
     std::fs::write(&fixture, bytes)?;
-    #[cfg(feature = "esp32c3-supermini")]
-    if std::ptr::eq(board, &*crate::esp32c3::BOARD) {
+    #[cfg(feature = "esp")]
+    if let Some(target) = crate::esp::target_of(board) {
         // Release the serial port before console capture and CDC reset.
-        crate::esp32c3::flash::write_full_image(_port, &fixture)?;
+        crate::esp::flash::write_full_image(target, _port, &fixture)?;
         return before_reset();
     }
     let mut cmd = Command::new(flash_worker(board)?);
@@ -495,10 +502,10 @@ fn read_console<P, F>(
     loop {
         match cmds.try_recv() {
             Ok(Cmd::Stop) | Err(mpsc::TryRecvError::Disconnected) => break,
-            #[cfg(feature = "esp32c3-supermini")]
+            #[cfg(feature = "esp")]
             Ok(Cmd::Reset(ack)) => {
                 // The console remains open throughout this control-line reset.
-                let result = crate::esp32c3::boot_from_download(&mut port).map_err(Error::external);
+                let result = crate::esp::boot_from_download(&mut port).map_err(Error::external);
                 let _ = ack.send(result);
             }
             Err(mpsc::TryRecvError::Empty) => {}
@@ -657,26 +664,38 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "esp32c3-supermini")]
+    #[cfg(feature = "esp")]
     #[test]
     fn esp_reset_dispatches_to_console_reader_without_a_worker() {
-        let (cmds, rx) = mpsc::channel();
-        let dut = Dut {
-            board: &crate::esp32c3::BOARD,
-            console: SharedConsole::default(),
-            cmds,
-            reader: None,
-            _board_lock: None,
-            _local_guard: None,
-            #[cfg(feature = "qemu")]
-            virtual_board: None,
-        };
-        let reader = std::thread::spawn(move || match rx.recv().unwrap() {
-            Cmd::Reset(ack) => ack.send(Ok(())).unwrap(),
-            Cmd::Stop => panic!("unexpected stop before reset"),
-        });
-        dut.reset().unwrap();
-        reader.join().unwrap();
+        for target in crate::esp::targets() {
+            let (cmds, rx) = mpsc::channel();
+            let dut = Dut {
+                board: target.board(),
+                console: SharedConsole::default(),
+                cmds,
+                reader: None,
+                _board_lock: None,
+                _local_guard: None,
+                #[cfg(feature = "qemu")]
+                virtual_board: None,
+            };
+            let reader = std::thread::spawn(move || match rx.recv().unwrap() {
+                Cmd::Reset(ack) => ack.send(Ok(())).unwrap(),
+                Cmd::Stop => panic!("unexpected stop before reset"),
+            });
+            dut.reset().unwrap();
+            reader.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn fixtures_must_match_the_board_flash_size() {
+        let short = vec![0xff; TEST_BOARD.flash_size - 1];
+        let error = program(&TEST_BOARD, "unused", &short, || Ok(())).unwrap_err();
+        assert!(
+            error.to_string().contains("expected complete 4 MiB"),
+            "{error}"
+        );
     }
 
     #[test]

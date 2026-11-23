@@ -162,13 +162,13 @@ pub static ESP32C5: ChipInfo = {
     }
 };
 
-/// One supported board: its chip, installed flash and boot-chain key.
+/// One supported board: its chip, configured flash capacity and boot-chain key.
 #[derive(Debug)]
 pub struct Board {
     /// Directory name under `boards/`.
     pub name: &'static str,
     pub chip: &'static ChipInfo,
-    /// Capacity of the flash installed on this board.
+    /// Flash capacity used by this board target (may be less than physical flash).
     pub flash_size: u32,
     /// Local development RSA-3072 Secure Boot V2 key (microtun-signer local store).
     pub dev_key: DevKey,

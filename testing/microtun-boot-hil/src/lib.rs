@@ -6,33 +6,36 @@
 //! `tests/security_counter.rs`, which consumes one OTP/eFuse epoch on physical
 //! boards or advances an isolated file-backed counter under QEMU.
 //! Ordinary fixtures are signed using the actual chip eFuse/OTP floor (read
-//! via JTAG/probe-rs on ESP32-C3 or SWD on RP2350),
+//! via JTAG/probe-rs on ESP32-C3/C5 or SWD on RP2350),
 //! or the QEMU eFuse backing file.
 //! Both suites build the
 //! real bootloader and the example firmware, sign it with upstream
-//! `imgtool`, compose a complete 4 MiB flash image with microtun-boot-core's own
-//! updater/trailer code, reset, and assert on the console. Physical fixtures
-//! use a shared `microtun-boot-flash` worker (Rust espflash for ESP32-C3 or
-//! probe-rs LZ4 restore for RP2350).
+//! `imgtool`, compose a complete flash image of the board's size with
+//! microtun-boot-core's own updater/trailer code, reset, and assert on the
+//! console. Physical fixtures use a shared `microtun-boot-flash` worker (Rust
+//! espflash for ESP32-C3/C5 or probe-rs LZ4 restore for RP2350).
 //! RP2350 bootloader variants are ROM-signed with the default development OTP policy.
 //! The harness modules
 //! below are board-independent; each board
 //! module contributes a [`Board`] description plus its executable-format code
 //! (ELF conversion, malformed-image mutations) and flash layout. Select the
-//! board under test with `esp32c3`, `rp2350`, or `qemu`. The QEMU backend
-//! uses isolated guest processes and persistent NOR files instead of a probe.
+//! board under test with `esp32c3-supermini`, `esp32c5-devkitc-1`,
+//! `rp2350-pico2`, or `qemu`. The QEMU backend uses isolated guest processes
+//! and persistent NOR files instead of a probe.
 //!
 //! Harness modules:
 //! * [`artifacts`]: cargo builds of bootloader variants and the firmware.
 //! * [`sign`]: imgtool signing plus MCUboot-envelope mutations.
-//! * [`flash`]: 4 MiB flash composer over microtun-boot-core.
+//! * [`flash`]: whole-flash composer over microtun-boot-core.
 //! * [`flash_transport`]: RP2350 single-pass LZ4 restore and probe reset.
 //! * [`worker`]: the shared `microtun-boot-flash` worker binary's `main`.
-//! * [`dut`]: ESP32-C3 Rust espflash flashing, RP2350 SWD worker, and console capture.
+//! * [`dut`]: ESP32 Rust espflash flashing, RP2350 SWD worker, and console capture.
 //! * [`scenario`]: small helpers shared by the scenario tests.
 //! * [`process`]: bounded subprocesses with live, libtest-captured output.
 //!
-//! Board modules: `esp32c3`, `rp2350` and `qemu` (selected by feature).
+//! Board modules: `esp32c3`, `esp32c5`, `rp2350` and `qemu` (selected by
+//! feature). The two ESP boards are descriptors over the shared `esp`
+//! back-end.
 
 pub mod artifacts;
 mod board_lock;
@@ -53,8 +56,12 @@ pub type ProbeSession = probe_rs::Session;
 #[cfg(not(feature = "rp2350-pico2"))]
 pub type ProbeSession = ();
 
+#[cfg(feature = "esp")]
+pub mod esp;
 #[cfg(feature = "esp32c3-supermini")]
 pub mod esp32c3;
+#[cfg(feature = "esp32c5-devkitc-1")]
+pub mod esp32c5;
 #[cfg(feature = "rp2350-pico2")]
 pub mod rp2350;
 
@@ -119,20 +126,23 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// a single static board description (lazily read from the table on ESP); composed [`flash::FlashImage`]s and
 /// [`dut::Dut`]s carry a reference to it.
 pub struct Board {
-    /// Short name (`esp32c3`). It also names the build directory
+    /// Short name (`esp32c5-devkitc-1`). It also names the build directory
     /// `target/hil-<name>/`, the `boards/<name>/microtun-boot` crate,
     /// `boards/<name>/firmware`, their `<name>-microtun-boot` and
     /// `<name>-firmware` binaries,
     /// (on RP2350) the worker's board argument and the console prefix.
     pub name: &'static str,
-    /// Human-readable chip name for messages (`ESP32-C3`).
+    /// Human-readable chip name for messages (`ESP32-C5`).
     pub chip: &'static str,
     /// Prefix of the suite's environment variables: `<prefix>_PORT`,
-    /// ESP32-C3 `<prefix>_FLASH_TIMEOUT_SECS`, or RP2350
+    /// ESP `<prefix>_FLASH_TIMEOUT_SECS`, or RP2350
     /// `<prefix>_PROBE_TIMEOUT_SECS` and `<prefix>_RESET_GATE`.
     pub env_prefix: &'static str,
     /// Rust target of the bootloader and firmware.
     pub target: &'static str,
+    /// Capacity of the board's flash. Every fixture is a complete image of
+    /// exactly this size.
+    pub flash_size: usize,
     pub console: Console,
     /// Optional probe transport (RP2350 only).
     pub probe: Option<Probe>,
@@ -200,6 +210,7 @@ pub(crate) static TEST_BOARD: Board = Board {
     chip: "host",
     env_prefix: "MICROTUN_BOOT_HOST",
     target: "none",
+    flash_size: flash::FLASH_SIZE,
     console: Console {
         port_hint: "nothing",
         open: |_| {

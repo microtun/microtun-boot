@@ -11,11 +11,16 @@ boots an image that fails verification.
 - **Upgrade strategies:** swap-using-scratch (test/permanent, revert,
   power-fail resume), overwrite-only, direct-XIP with or without revert.
 - **Policy:** downgrade prevention, minimum version, hardware security counter
-  (anti-rollback), imgtool `--vid`/`--cid`.
+  (anti-rollback; temporarily disabled on ESP32-C5), imgtool `--vid`/`--cid`.
 - **Boards:** [ESP32-C3 SuperMini](boards/esp32c3-supermini/README.md),
   [ESP32-C5-DevKitC-1](boards/esp32c5-devkitc-1/README.md),
   [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
   [QEMU](boards/qemu/README.md) (tests only).
+
+ESP32-C5 currently has neither hardware rollback enforcement nor TRNG-backed
+fault-injection timing jitter (esp-hal 1.2.2 limitations). Signature checks
+and the power glitch detector remain active. See the
+[C5 board notes](boards/esp32c5-devkitc-1/README.md#security-counter).
 
 microtun boot is an experimental prototype and an independent project, not
 affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and

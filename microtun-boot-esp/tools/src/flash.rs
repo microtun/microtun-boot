@@ -10,6 +10,7 @@ use espflash::{
     command::{Command, CommandType},
     connection::{Connection, ResetAfterOperation, ResetBeforeOperation},
     flasher::{Flasher, SpiAttachParams, SpiSetParams},
+    target::Chip,
 };
 use microtun_boot_build::tools::progress::Progress;
 use serialport::{SerialPortInfo, SerialPortType, UsbPortInfo};
@@ -24,6 +25,79 @@ use std::{
 const SECTOR_SIZE: u32 = 4096;
 const ROM_BLOCK_SIZE: u32 = 0x400;
 const BAUD: u32 = 115_200;
+
+/// RTC watchdog (RWDT) and super watchdog (SWD) registers, as used by
+/// esptool's `disable_watchdogs` for the ESP32-C3 and ESP32-C5/C6.
+///
+/// A USB-Serial/JTAG reset into the ROM downloader does not reset these
+/// LP/RTC-domain watchdogs. If the previously running image armed the RWDT
+/// (microtun boot arms it for 15 s), the chip resets mid-download and USB
+/// re-enumerates ("Broken pipe" / "No such device" during FLASH_DATA).
+/// `espflash`'s high-level `FlashTarget::begin` disables the RWDT, but this
+/// module issues ROM commands directly and must do it itself.
+#[derive(Debug, PartialEq, Eq)]
+struct Watchdogs {
+    rwdt_config0: u32,
+    rwdt_wprotect: u32,
+    rwdt_key: u32,
+    swd_config: u32,
+    swd_wprotect: u32,
+    swd_key: u32,
+    swd_auto_feed: u32,
+}
+
+const fn watchdogs(chip: Chip) -> Option<Watchdogs> {
+    match chip {
+        // RTC_CNTL (0x6000_8000)
+        Chip::Esp32c3 => Some(Watchdogs {
+            rwdt_config0: 0x6000_8090,
+            rwdt_wprotect: 0x6000_80a8,
+            rwdt_key: 0x50d8_3aa1,
+            swd_config: 0x6000_80ac,
+            swd_wprotect: 0x6000_80b0,
+            swd_key: 0x8f1d_312a,
+            swd_auto_feed: 1 << 31,
+        }),
+        // LP_WDT (0x600B_1C00)
+        Chip::Esp32c5 => Some(Watchdogs {
+            rwdt_config0: 0x600b_1c00,
+            rwdt_wprotect: 0x600b_1c18,
+            rwdt_key: 0x50d8_3aa1,
+            swd_config: 0x600b_1c1c,
+            swd_wprotect: 0x600b_1c20,
+            swd_key: 0x50d8_3aa1,
+            swd_auto_feed: 1 << 18,
+        }),
+        _ => None,
+    }
+}
+
+/// Disable the RWDT and set the SWD to auto-feed for the rest of this ROM
+/// session. Needs WRITE_REG, which Secure Download Mode rejects; there the
+/// write must finish within whatever watchdog the previous image left armed.
+fn disable_watchdogs(flasher: &mut Flasher, chip: Chip) -> Result<()> {
+    let Some(w) = watchdogs(chip) else {
+        return Ok(());
+    };
+    if flasher.secure_download_mode() {
+        eprintln!(
+            "warning: Secure Download Mode forbids WRITE_REG, so the RTC watchdog \
+             left armed across the USB-Serial/JTAG reset cannot be disabled and \
+             may reset the chip mid-write; flash through a USB-to-UART bridge \
+             instead (set ESPPORT to it, e.g. /dev/ttyUSB0)"
+        );
+        return Ok(());
+    }
+    let c = flasher.connection();
+    c.write_reg(w.rwdt_wprotect, w.rwdt_key, None)?;
+    c.write_reg(w.rwdt_config0, 0, None)?;
+    c.write_reg(w.rwdt_wprotect, 0, None)?;
+    c.write_reg(w.swd_wprotect, w.swd_key, None)?;
+    let swd = c.read_reg(w.swd_config)?;
+    c.write_reg(w.swd_config, swd | w.swd_auto_feed, None)?;
+    c.write_reg(w.swd_wprotect, 0, None)?;
+    Ok(())
+}
 
 /// Validate before opening a port: erase operations must cover whole sectors.
 fn check_range(flash_size: u32, offset: u32, size: u32) -> Result<()> {
@@ -104,9 +178,17 @@ fn select_port(
 
 /// `espflash` owns resetting into download mode, ROM sync, and SPI setup.
 /// Retry opening the port because native USB can re-enumerate during reset.
-fn connect_rom(board: &Board) -> Result<(Flasher, String)> {
+fn connect_rom(
+    board: &Board,
+    explicit_port: Option<&str>,
+    reset_after: bool,
+) -> Result<(Flasher, String)> {
     let ports = serialport::available_ports().context("enumerating serial ports")?;
-    let requested = std::env::var("ESPPORT").ok().filter(|p| !p.is_empty());
+    // The HIL worker passes its own selected port; a separate ESPPORT must
+    // never silently redirect a physical test to another attached board.
+    let requested = explicit_port
+        .map(|port| port.to_owned())
+        .or_else(|| std::env::var("ESPPORT").ok().filter(|p| !p.is_empty()));
     let (path, usb) = select_port(requested.as_deref(), &ports)?;
     eprintln!(
         "Connecting {} ROM downloader on {path} (no stub)",
@@ -122,7 +204,11 @@ fn connect_rom(board: &Board) -> Result<(Flasher, String)> {
             let connection = Connection::new(
                 serial,
                 usb.clone(),
-                ResetAfterOperation::HardReset,
+                if reset_after {
+                    ResetAfterOperation::HardReset
+                } else {
+                    ResetAfterOperation::NoReset
+                },
                 if usb.vid == 0x303a && usb.pid == 0x1001 {
                     ResetBeforeOperation::UsbReset
                 } else {
@@ -152,6 +238,12 @@ fn connect_rom(board: &Board) -> Result<(Flasher, String)> {
                 signature != 0,
                 "SYNC reached a RAM flasher stub, not the ESP32 ROM"
             );
+            // Only a USB-Serial/JTAG reset leaves the watchdogs armed; a
+            // UART auto-reset (EN pin) resets the whole chip, RTC included.
+            if usb.vid == 0x303a && usb.pid == 0x1001 {
+                disable_watchdogs(&mut flasher, board.chip.espflash)
+                    .context("disabling RTC/super watchdogs over USB-Serial/JTAG")?;
+            }
             // In Secure Download Mode flash autodetection (and its implicit
             // SPI_SET_PARAMS) is skipped by espflash, so configure it ourselves.
             attach_flash(&mut flasher, board.flash_size)?;
@@ -275,7 +367,12 @@ fn write_segments(flasher: &mut Flasher, flash_size: u32, regions: &[(u32, &[u8]
                 .with_timeout(Duration::from_secs(10), |c| {
                     c.command(flash_data(block, index as u32))
                 })
-                .with_context(|| format!("ROM FLASH_DATA at {address:#x}, block {index}"))?;
+                .with_context(|| {
+                    let block_address = address + index as u32 * ROM_BLOCK_SIZE;
+                    format!(
+                        "ROM FLASH_DATA at {block_address:#x}, region {address:#x}, block {index}"
+                    )
+                })?;
             program.inc(block.len() as u64);
         }
         program.finish();
@@ -325,6 +422,33 @@ fn finish(flasher: Flasher, port: &str, monitor: bool) -> Result<()> {
     }
 }
 
+/// Write one HIL fixture region using the same ROM commands as the board
+/// tools, but deliberately leave reset to the test harness. The caller
+/// captures the console *before* resetting so early boot messages are seen.
+///
+/// No RAM stub or FLASH_END is used. The region cannot overwrite bytes below
+/// the chip's ROM second-stage offset (the C5 key-manager sectors). Validate
+/// before opening the USB port, including the sector rounded erase extent.
+pub fn write_rom_region_no_reset(
+    board: &Board,
+    port: &str,
+    address: u32,
+    bytes: &[u8],
+) -> Result<()> {
+    ensure!(
+        address >= board.chip.rom_bootloader_offset,
+        "ESP32 ROM flash region at {address:#x} overlaps reserved bytes below {:#x}",
+        board.chip.rom_bootloader_offset,
+    );
+    check_write(board.flash_size, address, bytes)?;
+    let (mut flasher, _) = connect_rom(board, Some(port), false)?;
+    write_segments(&mut flasher, board.flash_size, &[(address, bytes)])?;
+    // Drop the downloader without resetting; the HIL parent owns the next
+    // reset and its serial reader. The connection used NoReset on connect.
+    drop(flasher.into_connection());
+    Ok(())
+}
+
 /// Flash one or more regions in the supplied order, in one ROM session.
 pub fn write_flash(board: &Board, regions: &[(u32, &Path)], monitor: bool) -> Result<()> {
     ensure!(!regions.is_empty(), "no flash regions");
@@ -345,7 +469,7 @@ pub fn write_flash(board: &Board, regions: &[(u32, &Path)], monitor: bool) -> Re
         .iter()
         .map(|(address, bytes)| (*address, bytes.as_slice()))
         .collect();
-    let (mut flasher, port) = connect_rom(board)?;
+    let (mut flasher, port) = connect_rom(board, None, true)?;
     write_segments(&mut flasher, board.flash_size, &segments)?;
     finish(flasher, &port, monitor)
 }
@@ -353,7 +477,7 @@ pub fn write_flash(board: &Board, regions: &[(u32, &Path)], monitor: bool) -> Re
 /// Erase every sector in a region using ROM FLASH_BEGIN alone.
 pub fn erase_region(board: &Board, address: u32, size: u32) -> Result<()> {
     check_range(board.flash_size, address, size)?;
-    let (mut flasher, port) = connect_rom(board)?;
+    let (mut flasher, port) = connect_rom(board, None, true)?;
     rom_erase(&mut flasher, board.flash_size, address, size)?;
     finish(flasher, &port, false)
 }
@@ -373,7 +497,7 @@ pub fn replace_region(
         signed.len() <= slot_size as usize,
         "signed image exceeds application slot"
     );
-    let (mut flasher, port) = connect_rom(board)?;
+    let (mut flasher, port) = connect_rom(board, None, true)?;
     rom_erase(&mut flasher, board.flash_size, address, slot_size)?;
     write_segments(&mut flasher, board.flash_size, &[(address, signed)])?;
     finish(flasher, &port, monitor)
@@ -394,11 +518,16 @@ mod tests {
     }
 
     #[test]
-    fn eight_mib_board_accepts_upper_flash() {
+    fn generic_c5_board_limits_writes_to_four_mib() {
         let size = crate::board::ESP32C5_DEVKITC_1.flash_size;
-        assert!(super::check_range(size, 0x42f000, 0x3b9000).is_ok());
-        assert!(super::check_range(FLASH_SIZE, 0x42f000, 0x3b9000).is_err());
+        assert_eq!(size, 0x0040_0000);
+        assert!(super::check_range(size, 0x22f000, 0x1b9000).is_ok());
+        assert!(super::check_range(size, 0x3f8000, 0x8000).is_ok());
+        assert!(super::check_range(size, 0x42f000, 0x3b9000).is_err());
         assert!(super::check_write(size, size - SECTOR_SIZE, &[0]).is_ok());
+        assert!(super::check_write(size, size, &[0]).is_err());
+        // The shared helper still supports a larger configured board.
+        assert!(super::check_range(0x0080_0000, 0x42f000, 0x3b9000).is_ok());
     }
 
     #[test]
@@ -428,6 +557,77 @@ mod tests {
         );
         assert!(check_write(0x1001, &[0x5a]).is_err());
         assert!(check_write(0x1000, &[]).is_err());
+    }
+
+    #[test]
+    fn hil_rom_writer_validates_regions_before_opening_usb() {
+        let c5 = &crate::board::ESP32C5_DEVKITC_1;
+        let error = write_rom_region_no_reset(c5, "missing-port", 0, &[0x55]).unwrap_err();
+        assert!(error.to_string().contains("reserved bytes"), "{error}");
+        let c3 = &crate::board::ESP32C3_SUPERMINI;
+        let error = write_rom_region_no_reset(c3, "missing-port", 0x1000, &[]).unwrap_err();
+        assert!(
+            error.to_string().contains("empty ESP flash image"),
+            "{error}"
+        );
+        for board in [c3, c5] {
+            let error = write_rom_region_no_reset(
+                board,
+                "missing-port",
+                board.flash_size - SECTOR_SIZE,
+                &vec![0xff; (SECTOR_SIZE + 1) as usize],
+            )
+            .unwrap_err();
+            assert!(error.to_string().contains("exceeds"), "{error}");
+        }
+    }
+
+    #[test]
+    fn watchdog_registers_cover_every_board_and_agree_with_espflash() {
+        for board in [
+            &crate::board::ESP32C3_SUPERMINI,
+            &crate::board::ESP32C5_DEVKITC_1,
+        ] {
+            let chip = board.chip.espflash;
+            let w = watchdogs(chip).expect("every supported board has watchdogs to disable");
+            assert_eq!(Some(w.rwdt_config0), chip.wdt_config0(), "{chip}");
+            assert_eq!(Some(w.rwdt_wprotect), chip.wdt_wprotect(), "{chip}");
+            assert_eq!(w.rwdt_key, 0x50d8_3aa1);
+        }
+    }
+
+    #[test]
+    fn explicitly_selected_non_usb_port_is_rejected() {
+        let ports = [SerialPortInfo {
+            port_name: "not-usb".into(),
+            port_type: SerialPortType::PciPort,
+        }];
+        let error = select_port(Some("not-usb"), &ports).unwrap_err();
+        assert!(error.to_string().contains("USB serial port"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicitly_selected_stable_symlink_matches_usb_port() {
+        let temp = tempfile::tempdir().unwrap();
+        let device = temp.path().join("ttyACM0");
+        let stable = temp.path().join("usb-Espressif-board");
+        fs::write(&device, b"").unwrap();
+        std::os::unix::fs::symlink(&device, &stable).unwrap();
+        let ports = [SerialPortInfo {
+            port_name: device.to_str().unwrap().to_owned(),
+            port_type: SerialPortType::UsbPort(UsbPortInfo {
+                vid: 0x303a,
+                pid: 0x1001,
+                serial_number: None,
+                manufacturer: None,
+                product: None,
+                interface: None,
+            }),
+        }];
+        let selected = select_port(Some(stable.to_str().unwrap()), &ports).unwrap();
+        assert_eq!(selected.0, stable.to_str().unwrap());
+        assert_eq!(selected.1.vid, 0x303a);
     }
 
     #[test]

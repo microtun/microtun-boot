@@ -5,37 +5,46 @@
 //! then refresh the trailing checksum and SHA-256 where the segment table is
 //! still walkable, so a rejection is caused by the layout under test rather
 //! than by a stale digest (which microtun boot does not check; the MCUboot
-//! signature covers the whole image).
+//! signature covers the whole image). The image format is the same on every
+//! supported chip; only the conversion settings in [`flash_data`] differ.
 
 use espflash::{
-    flasher::{FlashData, FlashFrequency, FlashMode, FlashSettings, FlashSize},
+    flasher::{FlashData, FlashFrequency, FlashMode, FlashSettings},
     image_format::idf::IdfBootloaderFormat,
-    target::{Chip, XtalFrequency},
 };
 use sha2::{Digest, Sha256};
+
+use super::EspTarget;
 
 pub const HEADER_LEN: usize = 24;
 pub const SEGMENT_HEADER_LEN: usize = 8;
 const CHECKSUM_MAGIC: u8 = 0xEF;
 
-/// Flash parameters of the 4 MiB layout (as `microtun-boot-tools-esp flash-bootloader` uses).
-pub fn flash_data() -> FlashData {
-    FlashData::new(
+/// Flash parameters of the board (as `microtun-boot-tools-esp flash-bootloader`
+/// uses): DIO at 80 MHz, the board's flash size, chip and crystal.
+pub fn flash_data(target: &EspTarget) -> crate::Result<FlashData> {
+    let chip = target.chip();
+    Ok(FlashData::new(
         FlashSettings::new(
             Some(FlashMode::Dio),
-            Some(FlashSize::_4Mb),
+            Some(
+                target
+                    .tools
+                    .espflash_size()
+                    .map_err(crate::Error::external)?,
+            ),
             Some(FlashFrequency::_80Mhz),
         ),
         0,
         None,
-        Chip::Esp32c3,
-        XtalFrequency::_40Mhz,
-    )
+        chip.espflash,
+        chip.xtal,
+    ))
 }
 
 /// Convert an ELF into an ESP image with espflash (`espflash save-image`).
-pub fn from_elf(elf: &[u8]) -> crate::Result<EspImage> {
-    let image = IdfBootloaderFormat::new(elf, &flash_data(), None, None, None, None)
+pub fn from_elf(target: &EspTarget, elf: &[u8]) -> crate::Result<EspImage> {
+    let image = IdfBootloaderFormat::new(elf, &flash_data(target)?, None, None, None, None)
         .map_err(crate::Error::external)?;
     let segment = image
         .ota_segments()

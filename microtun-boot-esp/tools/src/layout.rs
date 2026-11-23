@@ -192,11 +192,12 @@ mod tests {
     #[test]
     fn c5_layout_matches_documentation() {
         let layout = default_layout(&crate::board::ESP32C5_DEVKITC_1).unwrap();
+        assert_eq!(layout.board.flash_size, 0x0040_0000);
         assert_eq!(layout.offset, 0x10000);
-        assert_eq!(layout.region("image-0").unwrap(), (0x6f000, 0x3b9000));
-        assert_eq!(layout.region("image-1").unwrap(), (0x42f000, 0x3b9000));
-        assert_eq!(layout.region("image-scratch").unwrap(), (0x7e8000, 0x10000));
-        assert_eq!(layout.region("storage").unwrap(), (0x7f8000, 0x8000));
+        assert_eq!(layout.region("image-0").unwrap(), (0x6f000, 0x1b9000));
+        assert_eq!(layout.region("image-1").unwrap(), (0x22f000, 0x1b9000));
+        assert_eq!(layout.region("image-scratch").unwrap(), (0x3e8000, 0x10000));
+        assert_eq!(layout.region("storage").unwrap(), (0x3f8000, 0x8000));
         assert_eq!(layout.constants().unwrap()["BOOTLOADER_SIZE"], 0xe000);
     }
 }

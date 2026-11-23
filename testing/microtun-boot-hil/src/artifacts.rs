@@ -177,7 +177,7 @@ fn cargo_build(
 /// Run `cmd` with its stdout and stderr echoed line by line through
 /// `eprintln!`, which libtest captures. A child with inherited stdio writes
 /// straight to the terminal, past the capture.
-/// Used by both Cargo builds and the ESP32-C3 signing script.
+/// Used by Cargo builds and the ESP boot-chain signing.
 pub(crate) fn run_captured(mut cmd: Command, label: &str) -> std::io::Result<ExitStatus> {
     let (reader, writer) = std::io::pipe()?;
     cmd.stdin(Stdio::null())
@@ -219,7 +219,7 @@ mod tests {
             if variant != Variant::SwapScratch {
                 assert!(features.split(',').any(|feature| feature == variant.name()));
             }
-            for other in ["qemu", "esp32c3-supermini"] {
+            for other in ["qemu", "esp32c3-supermini", "esp32c5-devkitc-1"] {
                 assert!(!variant.features(other).contains("production"));
             }
         }

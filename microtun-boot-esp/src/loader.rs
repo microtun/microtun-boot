@@ -31,10 +31,9 @@ use crate::boot_info::{RESERVED_SIZE, SharedData, WORDS, wire_words};
 use crate::{SharedStorage, chip as layout};
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use log::info;
-use microtun_boot_core::{
-    Policy, PublicKey, Region, SecurityCounterStore, ValidatedImage, counter_permits, fih,
-    reauthenticate,
-};
+use microtun_boot_core::{Fih, Policy, PublicKey, Region, ValidatedImage, fih, reauthenticate};
+#[cfg(feature = "esp32c3")]
+use microtun_boot_core::{SecurityCounterStore, counter_permits};
 
 use crate::loader_plan;
 pub use crate::loader_plan::LoadError;
@@ -111,6 +110,7 @@ pub struct Authenticated<'a> {
 /// (resetting); there is no error path to skip.
 ///
 /// Call it after the last UART output. `random` should come from the TRNG.
+#[cfg(feature = "esp32c3")]
 #[inline(never)]
 pub fn confirm<F: NorFlash, S: SecurityCounterStore, R: rand::CryptoRng>(
     plan: Plan,
@@ -119,13 +119,40 @@ pub fn confirm<F: NorFlash, S: SecurityCounterStore, R: rand::CryptoRng>(
     counter: &mut S,
     random: &mut R,
 ) -> ConfirmedPlan {
+    let verdict =
+        confirmation_verdict(&plan, flash, &checked) & counter_permits(counter, checked.image);
+    fih::random_delay(random.next_u32());
+    verdict.require();
+    ConfirmedPlan(plan)
+}
+
+/// C5 handoff confirmation: re-authenticate and verify the plan, without
+/// hardware rollback or TRNG jitter. Neither is supported with esp-hal 1.2.2.
+/// TODO(esp32c5): restore the counter and entropy arguments when supported.
+#[cfg(feature = "esp32c5")]
+#[inline(never)]
+pub fn confirm<F: NorFlash>(
+    plan: Plan,
+    flash: &SharedStorage<F>,
+    checked: Authenticated<'_>,
+) -> ConfirmedPlan {
+    confirmation_verdict(&plan, flash, &checked).require();
+    ConfirmedPlan(plan)
+}
+
+#[inline(always)]
+fn confirmation_verdict<F: NorFlash>(
+    plan: &Plan,
+    flash: &SharedStorage<F>,
+    checked: &Authenticated<'_>,
+) -> Fih {
     let Authenticated {
         region,
         image,
         keys,
         policy,
         max_image_size,
-    } = checked;
+    } = *checked;
     let authentic = reauthenticate(
         &mut crate::partition(flash, region),
         keys,
@@ -150,12 +177,9 @@ pub fn confirm<F: NorFlash, S: SecurityCounterStore, R: rand::CryptoRng>(
             .map_err(|_| ())
         })
     });
-    let plan_matches = microtun_boot_core::Fih::ok(&again)
-        & again.map_or(fih::FAIL, |again| loader_plan::plans_agree(&plan, &again));
-    let verdict = authentic & plan_matches & counter_permits(counter, image);
-    fih::random_delay(random.next_u32());
-    verdict.require();
-    ConfirmedPlan(plan)
+    let plan_matches =
+        Fih::ok(&again) & again.map_or(fih::FAIL, |again| loader_plan::plans_agree(plan, &again));
+    authentic & plan_matches
 }
 
 /// Install the signed payload into the SRAM formerly occupied by IDF stage 2,

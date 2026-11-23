@@ -27,14 +27,19 @@ pub trait PolicyExt {
     /// Require the signed image's protected VID/CID TLVs and security counter.
     #[cfg(feature = "esp32c3")]
     fn esp32c3() -> Self;
-    /// Require the signed image's protected VID/CID TLVs and security counter.
+    /// Require protected VID/CID TLVs; no security-counter requirement on C5.
     #[cfg(feature = "esp32c5")]
     fn esp32c5() -> Self;
 }
 
 fn chip_policy() -> Policy {
     Policy {
+        #[cfg(feature = "esp32c3")]
         min_security_counter: Some(0),
+        // TODO(esp32c5): restore Some(0) together with the eFuse store and
+        // the hardened handoff counter check. None means no SEC_CNT floor.
+        #[cfg(feature = "esp32c5")]
+        min_security_counter: None,
         vid: Some(IMAGE_VID),
         cid: Some(IMAGE_CID),
         ..Policy::default()

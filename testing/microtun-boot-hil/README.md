@@ -16,6 +16,7 @@ Pick one target feature and one suite feature, from the repository root:
 ```sh
 cargo test -p microtun-boot-hil --features qemu,regression
 cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32c5-devkitc-1,smoke -- --test-threads=1
 cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
 ```
 
@@ -23,21 +24,37 @@ cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=
 |---|---|
 | `qemu` | [Patched QEMU](../../boards/qemu/README.md), no hardware |
 | `esp32c3-supermini` | [ESP32-C3 SuperMini](../../boards/esp32c3-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
-
-The ESP32-C5-DevKitC-1 has no HIL target yet.
+| `esp32c5-devkitc-1` | [ESP32-C5-DevKitC-1](../../boards/esp32c5-devkitc-1/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG (the "ESP32-C5 USB" port) |
 | `rp2350-pico2` | [Pico 2](../../boards/rp2350-pico2/README.md#hardware-in-the-loop-tests) over SWD and UART0 |
 
 | Suite | Covers | Targets |
 |---|---|---|
 | `smoke` | Upgrades, trial confirmations, watchdog handoff and malformed images | Physical boards |
 | `regression` | Full swap, overwrite, direct-XIP and safety matrices, plus `security-counter` | `qemu` |
-| `security-counter` | Anti-rollback | All |
+| `security-counter` | Anti-rollback | QEMU, ESP32-C3, RP2350 |
 
 Other combinations compile to no tests. Physical suites need
 `--test-threads=1`.
 
 **`security-counter` on a physical board permanently burns one eFuse/OTP
-epoch per run**, and the ESP32-C3 has only 16.
+epoch per run**, and the ESP32-C3 has only 16. ESP32-C5 hardware rollback
+is disabled with esp-hal 1.2.2; its counter suite is excluded and its ordinary
+fixtures use `SEC_CNT=0` without a JTAG fuse read. TODO(esp32c5): restore the
+suite and DUT-floor signing when the eFuse implementation is verified.
+
+Both ESP boards share one back-end (`src/esp/`); `src/esp32c3/` and
+`src/esp32c5/` only describe the board. The ESP HIL flash worker reuses the
+ROM-only SPI attach, flash geometry, erase and data commands in
+`microtun-boot-tools-esp::flash`: it sends no RAM stub or `FLASH_END`, and
+leaves the reset to the parent after console capture starts. It retains the
+ESP32-C5 reserved flash prefix and the worker timeout. After connecting, it
+disables the RTC watchdog (which microtun boot leaves armed for 15 s across the
+USB-Serial-JTAG reset) and sets the super watchdog to auto-feed, so the
+roughly 20 s fixture write isn't reset partway through. Because that needs
+`WRITE_REG`, the ESP HIL suite does not support chips in Secure Download Mode.
+Flash those through a USB-to-UART bridge as the board READMEs describe, and
+keep a separate `dev`-profile board for HIL. The harness unit tests need no hardware:
+`cargo test -p microtun-boot-hil --lib --features esp32c3-supermini,esp32c5-devkitc-1`.
 
 ## Prerequisites
 
@@ -54,7 +71,8 @@ epoch per run**, and the ESP32-C3 has only 16.
 | Variable | Purpose |
 |---|---|
 | `MICROTUN_BOOT_QEMU_BIN` | Patched `qemu-system-arm` (default: the one on `PATH`) |
-| `MICROTUN_BOOT_ESP32C3_PORT` | ESP32-C3 USB-Serial-JTAG port |
+| `MICROTUN_BOOT_ESP_PORT` | USB-Serial-JTAG port of the ESP board under test (ESP32-C3 or ESP32-C5) |
+| `MICROTUN_BOOT_ESP_FLASH_TIMEOUT_SECS` | Limit for one complete ESP fixture write (default 600) |
 | `MICROTUN_BOOT_RP235X_PORT` | RP2350 UART0 console |
 | `RP2350_SECURE_BOOT_KEY_ID` | Local ROM key for a board enrolled with a non-development key |
 | `PROBE_RS_PROBE`, `PROBE_RS_SPEED_KHZ` | Probe selection and SWD speed |

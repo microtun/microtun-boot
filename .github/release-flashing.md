@@ -49,6 +49,8 @@ microtun-boot-tools-esp --board esp32c5-devkitc-1 flash-bootloader --signed-bin 
 
 The complete signed image is verified and written at `0x2000`, where the ESP32-C5 ROM loads the second stage. It does not re-sign or rebuild anything.
 
+**ESP32 chips in Secure Download Mode** (a manually burned `ENABLE_SECURITY_DOWNLOAD` eFuse; neither profile sets it): flash through a **USB-to-UART** connection instead of USB-Serial-JTAG, and set `ESPPORT` to it explicitly (for example `/dev/ttyUSB0`). On the ESP32-C5-DevKitC-1 that is the board's USB-to-UART port. The ESP32-C3 SuperMini needs an external adapter on GPIO20/GPIO21. Over USB-Serial-JTAG, the RTC watchdog left armed by microtun boot can't be disabled in this mode and may reset the chip mid-write. See the board README's *Secure Download Mode* section.
+
 **RP2350 Pico 2** — Connect an SWD probe:
 
 ```sh

@@ -62,9 +62,9 @@ fn main() -> ! {
         }
     }
 
-    // Randomness for the delays in front of fault-hardened checks; its
-    // entropy source is released before the handoff.
-    let mut rng = boot_runtime::BootRng::new(peripherals.RNG, peripherals.ADC1);
+    // TODO(esp32c5): restore TRNG-backed jitter when esp-hal provides a
+    // working entropy source. Do not use a pseudo-RNG as a CryptoRng.
+    warn!("ESP32-C5: hardware rollback protection and TRNG jitter disabled");
 
     let storage = microtun_boot_esp::open_flash(peripherals.FLASH);
     let flash_size = storage.lock(|storage| storage.borrow().capacity()) as u32;
@@ -92,21 +92,13 @@ fn main() -> ! {
     let mut boot_config = config::boot_config();
     boot_config.slot_addresses = Some([layout.primary.offset, layout.secondary.offset]);
 
-    // Boot-time fuse access is exclusive; no peripheral IRQs are needed here.
-    // The IDF second stage leaves APP_ANTI_ROLLBACK disabled; microtun boot owns
-    // SECURE_VERSION independently of the factory boot manager's app descriptor.
+    // Keep interrupts disabled for the boot decision and RAM handoff.
+    // TODO(esp32c5): restore the eFuse store after esp-hal 1.2.2's C5 eFuse
+    // issue is resolved and read/program/verification are tested on hardware.
     riscv::interrupt::disable();
-    // SAFETY: `esp_hal::init` ran in `boot_runtime::init`; single core with
-    // IRQs disabled for the counter's lifetime, and nothing else in this
-    // binary programs eFuses; SECURE_VERSION is reserved for microtun boot and
-    // IDF anti-rollback is off (see above).
-    let mut security_counter =
-        unsafe { microtun_boot_esp::security_counter::EfuseSecurityCounter::new() };
     let (decision, max_image_size) = {
         let mut bootloader = microtun_boot_esp::bootloader(&layout, &flash, &keys, boot_config)
-            .expect("invalid slot configuration")
-            .with_security_counter_store(&mut security_counter)
-            .with_entropy(&mut rng);
+            .expect("invalid slot configuration");
 
         let decision = match bootloader.boot_with_validator(
             &mut |partition: &mut microtun_boot_esp::StoragePartition<'_, BootFlash<'_, '_>>,
@@ -157,20 +149,12 @@ fn main() -> ! {
         image
     );
 
-    let rollback_floor = match microtun_boot_core::SecurityCounterStore::get(&mut security_counter)
-    {
-        Ok(floor) => floor,
-        Err(e) => {
-            error!("cannot read hardware rollback floor: {:?}; resetting", e);
-            boot_runtime::reset_after_delay()
-        }
-    };
     let boot_info = match microtun_boot_esp::boot_info::boot_save_shared_data(
         config::MODE,
         decision.slot,
         max_image_size,
         Some(config::version()),
-        Some(rollback_floor),
+        None, // No hardware rollback floor on ESP32-C5.
     ) {
         Ok(info) => info,
         Err(e) => {
@@ -196,8 +180,8 @@ fn main() -> ! {
     };
     info!("jumping to {:#010x}", plan.entry());
     // Point of no return: nothing is printed after this. Authenticate the
-    // slot a second time, re-derive the plan and re-read the rollback floor,
-    // then decide after a random delay. A disagreement panics (resetting).
+    // slot a second time and re-derive the plan. A disagreement panics
+    // (resetting). The C5 has no hardware floor or TRNG jitter for now.
     let plan = loader::confirm(
         plan,
         &flash,
@@ -208,10 +192,7 @@ fn main() -> ! {
             policy: &boot_config.policy,
             max_image_size,
         },
-        &mut security_counter,
-        &mut rng,
     );
-    rng.release();
     // Leave the hardware timer running through the destructive RAM handoff,
     // with a full deadline for the application's startup.
     feed_watchdog();

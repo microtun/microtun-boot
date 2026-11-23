@@ -1,4 +1,5 @@
-//! A complete 4 MiB flash image: bootloader, slots, scratch and storage.
+//! A complete flash image of the board's size ([`Board::flash_size`]):
+//! bootloader, slots, scratch and storage.
 //!
 //! The board suites lay out the bootloader (and, on ESP, the partition table)
 //! and hand over the slot layout; everything after that is shared.
@@ -20,8 +21,19 @@ use microtun_boot_core::{
 
 use crate::{Board, hooks::HookConfig};
 
+/// Flash size of the RP2350 Pico 2 and QEMU fixtures (and the ESP32-C3
+/// SuperMini). Other boards set their own [`Board::flash_size`].
 pub const FLASH_SIZE: usize = 4 * 1024 * 1024;
 pub const SECTOR: u32 = 4096;
+
+/// `"4 MiB"`, for messages about a complete fixture of `bytes`.
+pub fn describe_size(bytes: usize) -> String {
+    if bytes.is_multiple_of(1024 * 1024) {
+        format!("{} MiB", bytes / (1024 * 1024))
+    } else {
+        format!("{bytes} bytes")
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FlashError {
@@ -139,7 +151,7 @@ impl FlashImage {
         policy: Policy,
     ) -> Self {
         Self {
-            mem: Rc::new(RefCell::new(vec![0xFF; FLASH_SIZE])),
+            mem: Rc::new(RefCell::new(vec![0xFF; board.flash_size])),
             board,
             policy,
             layout,
@@ -324,6 +336,13 @@ mod tests {
         let image = erased();
         image.program(0x10, &[1, 2, 3]);
         assert_eq!(image.read(0x0f, 5), vec![0xff, 1, 2, 3, 0xff]);
-        assert_eq!(image.bytes().len(), FLASH_SIZE);
+        assert_eq!(image.bytes().len(), crate::TEST_BOARD.flash_size);
+    }
+
+    #[test]
+    fn sizes_are_described_in_mebibytes_when_whole() {
+        assert_eq!(describe_size(FLASH_SIZE), "4 MiB");
+        assert_eq!(describe_size(8 * 1024 * 1024), "8 MiB");
+        assert_eq!(describe_size(4096), "4096 bytes");
     }
 }

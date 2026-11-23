@@ -9,6 +9,13 @@ For a complete, flashable setup see the
 [ESP32-C5-DevKitC-1](../boards/esp32c5-devkitc-1/README.md) board.
 `tools/` holds the `microtun-boot-tools-esp` host tool.
 
+With esp-hal 1.2.2, ESP32-C5 temporarily has no hardware security-counter
+support and no TRNG-backed jitter. The eFuse counter module and `BootRng`
+are C3-only. C5 retains protected VID/CID policy, signature re-authentication,
+load-plan verification and the power glitch detector. See the
+[C5 board notes](../boards/esp32c5-devkitc-1/README.md#security-counter)
+for restoration TODOs.
+
 ## Using it from an application
 
 ```toml

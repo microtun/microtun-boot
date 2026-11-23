@@ -32,8 +32,8 @@ MICROTUN_SIGNER_GITHUB_LOGIN = "true"
 # `IMAGE_VERSION=0.2.0 cargo run --release` overrides this per build.
 IMAGE_VERSION = "0.1.0"
 # MCUboot security counter, included in the signed image's protected metadata.
-# Raise only when intentionally advancing anti-rollback state on the device.
-# `SECURITY_COUNTER=1 cargo run --release` overrides this for one image.
+# C5 hardware rollback is disabled with esp-hal 1.2.2; leave this at 0.
+# TODO(esp32c5): revisit when hardware rollback support returns.
 SECURITY_COUNTER = "0"
 
 # Embedded release/dev profiles live in Cargo config because examples are

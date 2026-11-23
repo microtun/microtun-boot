@@ -75,70 +75,44 @@ pub fn reset_after_delay() -> ! {
     esp_hal::system::software_reset()
 }
 
-/// Randomness for the delays in front of the fault-hardened checks.
+/// Randomness for the delays in front of fault-hardened checks on ESP32-C3:
+/// esp-hal's TRNG, with the SAR ADC entropy source running.
 ///
-/// * **ESP32-C3:** esp-hal's TRNG, with the SAR ADC entropy source running.
-/// * **ESP32-C5:** esp-hal 1.2 has no TRNG entropy source for the C5, and
-///   ESP-IDF's second stage switches its SAR ADC noise source off before it
-///   starts microtun boot. This is the hardware RNG without a guaranteed
-///   physical noise source, which esp-hal documents as pseudo-random. The
-///   ADC is still taken, so both chips share one constructor.
-///
-/// microtun boot only uses these words to jitter the timing of its hardened
-/// checks; no key, nonce or signature depends on them. On the C5 the
-/// `CryptoRng` marker satisfies `microtun-boot-core`'s entropy interface, not
-/// a cryptographic-quality claim: weaker jitter makes timing a glitch easier.
+/// TODO(esp32c5): esp-hal 1.2.2 has no C5 TRNG entropy source, and ESP-IDF's
+/// second stage switches off its SAR ADC noise source before microtun boot.
+/// Restore this service on C5 only when a real entropy source is supported
+/// and verified. Until then the hardened checks run without random delays.
 ///
 /// Call [`BootRng::release`] before the handoff.
+#[cfg(feature = "esp32c3")]
 pub struct BootRng<'d> {
-    #[cfg(feature = "esp32c3")]
     trng: esp_hal::rng::Trng,
-    #[cfg(feature = "esp32c3")]
     source: esp_hal::rng::TrngSource<'d>,
-    #[cfg(feature = "esp32c5")]
-    rng: esp_hal::rng::Rng,
-    #[cfg(feature = "esp32c5")]
-    _adc: esp_hal::peripherals::ADC1<'d>,
 }
 
+#[cfg(feature = "esp32c3")]
 impl<'d> BootRng<'d> {
     /// Take the RNG and its entropy source so no other driver reconfigures them.
     pub fn new(rng: esp_hal::peripherals::RNG<'d>, adc: esp_hal::peripherals::ADC1<'d>) -> Self {
-        #[cfg(feature = "esp32c3")]
-        {
-            let source = esp_hal::rng::TrngSource::new(rng, adc);
-            let trng = esp_hal::rng::Trng::try_new().expect("TRNG entropy source");
-            Self { trng, source }
-        }
-        #[cfg(feature = "esp32c5")]
-        {
-            let _ = rng;
-            Self {
-                rng: esp_hal::rng::Rng::new(),
-                _adc: adc,
-            }
-        }
+        let source = esp_hal::rng::TrngSource::new(rng, adc);
+        let trng = esp_hal::rng::Trng::try_new().expect("TRNG entropy source");
+        Self { trng, source }
     }
 
     /// Stop the entropy source (the C3's SAR ADC) before the RAM handoff.
     pub fn release(self) {
-        #[cfg(feature = "esp32c3")]
-        {
-            let Self { trng, source } = self;
-            // The HAL refuses to disable the source while a TRNG user is alive.
-            drop(trng);
-            drop(source);
-        }
+        let Self { trng, source } = self;
+        // The HAL refuses to disable the source while a TRNG user is alive.
+        drop(trng);
+        drop(source);
     }
 
     fn word(&mut self) -> u32 {
-        #[cfg(feature = "esp32c3")]
-        return rand::RngCore::next_u32(&mut self.trng);
-        #[cfg(feature = "esp32c5")]
-        return self.rng.random();
+        rand::RngCore::next_u32(&mut self.trng)
     }
 }
 
+#[cfg(feature = "esp32c3")]
 impl rand::RngCore for BootRng<'_> {
     fn next_u32(&mut self) -> u32 {
         self.word()
@@ -153,4 +127,5 @@ impl rand::RngCore for BootRng<'_> {
     }
 }
 
+#[cfg(feature = "esp32c3")]
 impl rand::CryptoRng for BootRng<'_> {}

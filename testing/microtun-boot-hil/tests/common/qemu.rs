@@ -118,7 +118,7 @@ pub fn assert_watchdog_reset(dut: &Dut, from: usize) {
     assert_eq!(field(&hello, "reset"), Some("Some(TimedOut)"));
 }
 
-// Shared smoke assertions use the fixture's geometry on ESP32-C3.
+// Shared smoke assertions use the fixture's geometry on ESP boards.
 pub fn max_image_size(_flash: &FlashImage) -> String {
     MAX_IMAGE_SIZE.to_owned()
 }

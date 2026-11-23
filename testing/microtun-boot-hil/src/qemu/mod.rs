@@ -15,6 +15,7 @@ pub static BOARD: Board = Board {
     chip: "QEMU Cortex-M3",
     env_prefix: "MICROTUN_BOOT_QEMU",
     target: "thumbv7m-none-eabi",
+    flash_size: layout::FLASH_SIZE as usize,
     // These physical-board callbacks are never used; Dut dispatches to QEMU.
     console: Console {
         port_hint: "QEMU console",

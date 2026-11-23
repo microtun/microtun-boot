@@ -2,6 +2,11 @@
 //! epoch): 16 bits on the ESP32-C3, 9 bits on the ESP32-C5. USER_DATA is
 //! RS-coded and cannot be incrementally burned. IDF factory-app anti-rollback
 //! must remain disabled: microtun boot owns this field exclusively.
+//!
+//! TODO(esp32c5): the C5 branches are retained for future work but this module
+//! is compiled only on C3 for now (esp-hal 1.2.2 C5 eFuse issue). Before
+//! restoring C5, verify refresh, error handling, write protection, monotonic
+//! programming and read-back on an expendable device.
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use esp_hal::{

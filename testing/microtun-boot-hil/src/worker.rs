@@ -3,6 +3,7 @@
 //!
 //! ```text
 //! microtun-boot-flash esp32c3-supermini PORT FLASH.bin  flash 4 MiB via the ESP ROM loader
+//! microtun-boot-flash esp32c5-devkitc-1 PORT FLASH.bin  flash 4 MiB via the ESP ROM loader
 //! microtun-boot-flash rp2350-pico2 FLASH.bin       restore 4 MiB over SWD, then reset
 //! microtun-boot-flash rp2350-pico2 --reset         reset only
 //! ```
@@ -14,7 +15,7 @@ use std::{path::PathBuf, time::Duration};
 #[cfg(feature = "rp2350-pico2")]
 use crate::{Board, flash_transport};
 
-const USAGE: &str = "usage: microtun-boot-flash esp32c3-supermini PORT FLASH.bin | microtun-boot-flash rp2350-pico2 <FLASH.bin|--reset>";
+const USAGE: &str = "usage: microtun-boot-flash <esp32c3-supermini|esp32c5-devkitc-1> PORT FLASH.bin | microtun-boot-flash rp2350-pico2 <FLASH.bin|--reset>";
 
 /// Run the worker for the board named on the command line.
 /// Successful completion returns normally; errors produce a failure exit code.
@@ -27,9 +28,11 @@ pub fn main() {
 
 fn run_cli(mut args: impl Iterator<Item = OsString>) -> crate::Result<()> {
     let board = args.next().ok_or(USAGE)?;
+    #[cfg(feature = "esp")]
+    if let Some(target) = board.to_str().and_then(crate::esp::target_named) {
+        return run_esp(target, args);
+    }
     match board.to_str() {
-        #[cfg(feature = "esp32c3-supermini")]
-        Some("esp32c3-supermini") => run_esp32c3(args),
         #[cfg(feature = "rp2350-pico2")]
         Some("rp2350-pico2") => run_rp2350(&crate::rp2350::BOARD, args),
         _ => Err(USAGE.into()),
@@ -37,14 +40,18 @@ fn run_cli(mut args: impl Iterator<Item = OsString>) -> crate::Result<()> {
 }
 
 /// Own the USB port until flashing finishes; the parent reopens CDC afterward.
-#[cfg(feature = "esp32c3-supermini")]
-fn run_esp32c3(mut args: impl Iterator<Item = OsString>) -> crate::Result<()> {
+#[cfg(feature = "esp")]
+fn run_esp(
+    target: &'static crate::esp::EspTarget,
+    mut args: impl Iterator<Item = OsString>,
+) -> crate::Result<()> {
     let port = args.next().ok_or(USAGE)?;
     let image = args.next().ok_or(USAGE)?;
     if args.next().is_some() {
         return Err(USAGE.into());
     }
-    crate::esp32c3::flash::write_full_image_in_worker(
+    crate::esp::flash::write_full_image_in_worker(
+        target,
         port.to_str().ok_or("PORT must be valid UTF-8")?,
         std::path::Path::new(&image),
     )
@@ -114,28 +121,30 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "esp32c3-supermini")]
+    #[cfg(feature = "esp")]
     #[test]
-    fn esp32c3_requires_port_and_image() {
-        for bad in [
-            &["esp32c3-supermini"][..],
-            &["esp32c3-supermini", "port"][..],
-            &["esp32c3-supermini", "port", "image", "extra"][..],
-        ] {
-            assert_eq!(run_cli(args(bad)).unwrap_err().to_string(), USAGE);
+    fn esp_boards_require_port_and_image() {
+        for target in crate::esp::targets() {
+            let name = target.tools.name;
+            for bad in [
+                &[name][..],
+                &[name, "port"][..],
+                &[name, "port", "image", "extra"][..],
+            ] {
+                assert_eq!(run_cli(args(bad)).unwrap_err().to_string(), USAGE);
+            }
+            // Valid arguments must validate fixture size before opening USB.
+            let image = tempfile::NamedTempFile::new().unwrap();
+            let error =
+                run_cli(args(&[name, "unused", image.path().to_str().unwrap()])).unwrap_err();
+            let size = crate::flash::describe_size(target.tools.flash_size as usize);
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("expected complete {size}")),
+                "{error}"
+            );
         }
-        // Valid arguments must validate fixture size before opening USB.
-        let image = tempfile::NamedTempFile::new().unwrap();
-        let error = run_cli(args(&[
-            "esp32c3-supermini",
-            "unused",
-            image.path().to_str().unwrap(),
-        ]))
-        .unwrap_err();
-        assert!(
-            error.to_string().contains("expected complete 4 MiB"),
-            "{error}"
-        );
     }
 
     #[cfg(feature = "rp2350-pico2")]

@@ -4,7 +4,8 @@
 //! Arguments follow `microtun_boot_build::tools::mcuboot`, which the boards' Rust signing tools use;
 //! the slot geometry comes from the board's [`Signing`]. Set `IMGTOOL` to
 //! override the executable. HIL signs ordinary images at the actual DUT
-//! security-counter floor; explicit signing arguments take precedence.
+//! security-counter floor (except C5, where it is disabled); explicit signing
+//! arguments take precedence.
 
 use std::{
     collections::HashMap,
@@ -81,28 +82,29 @@ fn read_initial_security_counter() -> crate::Result<u32> {
         // Ordinary QEMU boards start with freshly initialized eFuse storage.
         crate::qemu::VirtualBoard::new(0)?.security_counter()
     }
-    #[cfg(any(feature = "esp32c3-supermini", feature = "rp2350-pico2"))]
+    #[cfg(any(feature = "esp", feature = "rp2350-pico2"))]
     {
         // No firmware compilation, image composition, flashing, or bootloader
-        // output: both physical backends read the chip's fuses directly.
-        #[cfg(feature = "esp32c3-supermini")]
-        let board = &crate::esp32c3::BOARD;
+        // output: every physical backend reads the chip's fuses directly.
+        // The scenario tests enable exactly one board.
+        #[cfg(feature = "esp")]
+        let target = crate::esp::targets()
+            .next()
+            .ok_or("no ESP board feature enabled")?;
+        #[cfg(feature = "esp")]
+        let board = target.board();
         #[cfg(feature = "rp2350-pico2")]
         let board = &crate::rp2350::BOARD;
         let port_var = board.env("PORT");
         let port = std::env::var(&port_var)
             .map_err(|_| format!("set {port_var} to {}", board.console.port_hint))?;
         let _lock = crate::board_lock::BoardLock::acquire(board, &port)?;
-        #[cfg(feature = "esp32c3-supermini")]
-        return crate::esp32c3::security_counter::read();
+        #[cfg(feature = "esp")]
+        return crate::esp::security_counter::read(target);
         #[cfg(feature = "rp2350-pico2")]
         return crate::rp2350::probe::read_security_counter();
     }
-    #[cfg(not(any(
-        feature = "esp32c3-supermini",
-        feature = "rp2350-pico2",
-        feature = "qemu"
-    )))]
+    #[cfg(not(any(feature = "esp", feature = "rp2350-pico2", feature = "qemu")))]
     Err("select a HIL board feature to read the security counter".into())
 }
 
@@ -186,6 +188,10 @@ pub fn sign(signing: &Signing, payload: &[u8], opts: &SignOptions) -> crate::Res
         .any(|arg| arg == "--security-counter" || arg.starts_with("--security-counter="))
     {
         None
+    } else if signing.cid == "esp32c5" {
+        // TODO(esp32c5): restore DUT-floor signing when hardware rollback
+        // support is restored. No JTAG eFuse read is needed for C5 fixtures.
+        Some(0)
     } else {
         Some(initial_security_counter()?)
     };

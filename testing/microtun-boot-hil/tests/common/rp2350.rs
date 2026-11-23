@@ -59,7 +59,7 @@ pub fn smoke_malformed(img: &ArmImage) -> Malformed {
     }
 }
 
-// Console differences belong here; the scenarios are shared with ESP32-C3.
+// Console differences belong here; the scenarios are shared with ESP boards.
 pub const PLATFORM_REJECTED: &str = "PlatformRejected";
 pub const NO_EXECUTABLE: &str = "no executable application";
 pub const MAX_IMAGE_SIZE: &str = "1957888";
@@ -78,7 +78,7 @@ pub fn assert_watchdog_reset(dut: &Dut, from: usize) {
     assert_eq!(field(&hello, "reset"), Some("Some(TimedOut)"));
 }
 
-// Shared smoke assertions use the fixture's geometry on ESP32-C3.
+// Shared smoke assertions use the fixture's geometry on ESP boards.
 pub fn max_image_size(_flash: &FlashImage) -> String {
     MAX_IMAGE_SIZE.to_owned()
 }
