@@ -3,8 +3,6 @@
 
 Install Rust/Cargo and Git. Make sure Cargo-installed binaries are on your `PATH` (normally via `~/.cargo/bin`). On Linux, installing the ESP tool also requires `libudev-dev` and `pkg-config`.
 
-Install the flashing tool for your board directly from **this release's tag**; no repository checkout is needed. The commands in the published release notes already use the correct tag.
-
 **ESP32-C3 SuperMini and ESP32-C5-DevKitC-1:**
 
 ```sh
