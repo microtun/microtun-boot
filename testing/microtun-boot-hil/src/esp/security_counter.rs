@@ -134,6 +134,11 @@ mod tests {
         shift: 9,
         bits: 9,
     };
+    const C6: SecureVersionEfuse = SecureVersionEfuse {
+        controller: 0x600b_0800,
+        shift: 14,
+        bits: 16,
+    };
 
     #[test]
     fn counts_burned_bits_within_the_field_only() {
@@ -165,6 +170,7 @@ mod tests {
             let expected = match target.chip().name {
                 "esp32c3" => C3,
                 "esp32c5" => C5,
+                "esp32c6" => C6,
                 other => panic!("no eFuse expectation for {other}"),
             };
             assert_eq!(target.secure_version, expected);

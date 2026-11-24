@@ -6,7 +6,8 @@
 //! included in the self-contained, relocated IRAM payload.
 //!
 //! USB_SERIAL_JTAG_EP1_REG and EP1_CONF_REG are at 0x6004_3000/+4 on the
-//! ESP32-C3 and at 0x6000_F000/+4 on the ESP32-C5, with the same bits.
+//! ESP32-C3 and at 0x6000_F000/+4 on the ESP32-C5 and ESP32-C6, with the
+//! same bits.
 //! The transmit packet is <=64 bytes, committed with WR_DONE. We never wait
 //! indefinitely if the USB host is absent, disconnected, or stops reading.
 
@@ -14,7 +15,7 @@ use core::ptr::{read_volatile, write_volatile};
 
 #[cfg(chip = "esp32c3")]
 const USB_SERIAL_JTAG: usize = 0x6004_3000;
-#[cfg(chip = "esp32c5")]
+#[cfg(any(chip = "esp32c5", chip = "esp32c6"))]
 const USB_SERIAL_JTAG: usize = 0x6000_F000;
 const USB_EP1_DATA: *mut u32 = USB_SERIAL_JTAG as *mut u32;
 const USB_EP1_CONF: *mut u32 = (USB_SERIAL_JTAG + 4) as *mut u32;

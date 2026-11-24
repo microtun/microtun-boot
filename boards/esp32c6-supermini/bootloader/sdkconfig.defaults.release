@@ -1,0 +1,40 @@
+# ESP-IDF v5.5.5, any ESP32-C6 revision (v0.0 or later).
+# Profile: release. Selected by ESP_BOOTLOADER_PROFILE during Docker builds.
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESP32C6_REV_MIN_0=y
+CONFIG_ESP32C6_REV_MIN_FULL=0
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+# The ROM loads this stage from 0x0, so it may use 0x0..0x10000 (64 KiB).
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+# Keep the second-stage bootloader small enough for the 60 KiB unsigned limit.
+CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+# CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK is not set
+# CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE is not set
+
+# Both the IDF second stage and factory microtun boot third stage must be signed
+# externally using the SAME provisioned RSA-3072 Secure Boot V2 key.
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_V2_ENABLED=y
+# RSA-3072 (PSS), the scheme microtun boot's boot-chain tools sign with.
+CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y
+# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set
+
+# WARNING: ESP-IDF v5.5.5 may irreversibly program security eFuses on first
+# successful boot. microtun-boot-tools-esp flash-bootloader requires explicit acknowledgment.
+# There is no SECURE_BOOT_REQUIRE_ALREADY_ENABLED setting in this version.
+
+# Production security policy: do not permit the insecure-option menu.
+# By default ESP-IDF will disable JTAG and revoke unused SBv2 digest slots
+# when provisioning Secure Boot; THESE eFuse changes are irreversible.
+# CONFIG_SECURE_BOOT_INSECURE is not set
+# CONFIG_SECURE_BOOT_ALLOW_JTAG is not set
+# CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS is not set
+
+# ROM download-mode lockdown, key provisioning and flash encryption are
+# separate manufacturing decisions; this file does not enable them.
+# IMPORTANT: replace BOTH committed development signing keys before release.

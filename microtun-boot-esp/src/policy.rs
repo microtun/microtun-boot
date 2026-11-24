@@ -1,7 +1,8 @@
 //! ESP image-acceptance policy for the selected chip.
 //!
 //! The VID/CID are Microtun-derived identifiers, generated exactly as
-//! `imgtool sign --vid microtun.dev --cid <chip>` (`esp32c3` or `esp32c5`).
+//! `imgtool sign --vid microtun.dev --cid <chip>` (`esp32c3`, `esp32c5` or
+//! `esp32c6`).
 //! Keep both values synchronized with the image-signing defaults.
 //! Both the bootloader and the firmware updater must enforce the same policy.
 
@@ -22,6 +23,12 @@ pub const IMAGE_CID: [u8; 16] = [
     0xdf, 0xf2, 0xe3, 0x18, 0xd6, 0x35, 0x55, 0xa5, 0xb8, 0xb1, 0x83, 0x25, 0x4c, 0xbd, 0x59, 0xbc,
 ];
 
+/// UUIDv5(IMAGE_VID, "esp32c6") — ESP32C6 firmware class.
+#[cfg(feature = "esp32c6")]
+pub const IMAGE_CID: [u8; 16] = [
+    0x4f, 0x2c, 0xf6, 0x39, 0xd3, 0x60, 0x5a, 0x81, 0xa5, 0x9b, 0x49, 0x5e, 0xce, 0x8b, 0xd5, 0xd7,
+];
+
 /// Chip-specific constructors for [`Policy`].
 pub trait PolicyExt {
     /// Require the signed image's protected VID/CID TLVs and security counter.
@@ -30,11 +37,14 @@ pub trait PolicyExt {
     /// Require protected VID/CID TLVs; no security-counter requirement on C5.
     #[cfg(feature = "esp32c5")]
     fn esp32c5() -> Self;
+    /// Require the signed image's protected VID/CID TLVs and security counter.
+    #[cfg(feature = "esp32c6")]
+    fn esp32c6() -> Self;
 }
 
 fn chip_policy() -> Policy {
     Policy {
-        #[cfg(feature = "esp32c3")]
+        #[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
         min_security_counter: Some(0),
         // TODO(esp32c5): restore Some(0) together with the eFuse store and
         // the hardened handoff counter check. None means no SEC_CNT floor.
@@ -53,6 +63,10 @@ impl PolicyExt for Policy {
     }
     #[cfg(feature = "esp32c5")]
     fn esp32c5() -> Self {
+        chip_policy()
+    }
+    #[cfg(feature = "esp32c6")]
+    fn esp32c6() -> Self {
         chip_policy()
     }
 }

@@ -7,6 +7,8 @@
     all(feature = "esp32c5-devkitc-1-n4", feature = "esp32c5-devkitc-1-n8"),
     all(feature = "esp32c5-devkitc-1-n4", feature = "esp32c5-devkitc-1-n16"),
     all(feature = "esp32c5-devkitc-1-n8", feature = "esp32c5-devkitc-1-n16"),
+    all(feature = "esp32c6-supermini", feature = "esp32c3-supermini"),
+    all(feature = "esp32c6-supermini", feature = "esp32c5"),
     all(feature = "esp", feature = "rp2350-pico2"),
     all(feature = "esp", feature = "qemu"),
     all(feature = "rp2350-pico2", feature = "qemu"),
@@ -14,7 +16,7 @@
 compile_error!(
     "the scenario tests run against one board: enable exactly one of `esp32c3-supermini`, \
      `esp32c5-devkitc-1-n4`, `esp32c5-devkitc-1-n8`, `esp32c5-devkitc-1-n16`, \
-     `rp2350-pico2`, or `qemu`"
+     `esp32c6-supermini`, `rp2350-pico2`, or `qemu`"
 );
 
 #[cfg(feature = "esp")]

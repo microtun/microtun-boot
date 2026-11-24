@@ -7,10 +7,12 @@ ESP_BOOTLOADER_ESP_IDF_CONFIG_PARTITION_TABLE_OFFSET = "0x8000"
 [alias]
 check-esp32c3 = "check --features esp32c3,boot-runtime --target riscv32imc-unknown-none-elf"
 clippy-esp32c3 = "clippy --features esp32c3,boot-runtime --target riscv32imc-unknown-none-elf"
-# The C5 boot runtime also needs ESP_HAL_CONFIG_ENABLE_PMP=false in the
-# environment (see build.rs); esp-hal rejects that option for the C3.
+# The C5 and C6 boot runtimes also need ESP_HAL_CONFIG_ENABLE_PMP=false in
+# the environment (see build.rs); esp-hal rejects that option for the C3.
 check-esp32c5 = "check --features esp32c5,boot-runtime --target riscv32imac-unknown-none-elf"
 clippy-esp32c5 = "clippy --features esp32c5,boot-runtime --target riscv32imac-unknown-none-elf"
+check-esp32c6 = "check --features esp32c6,boot-runtime --target riscv32imac-unknown-none-elf"
+clippy-esp32c6 = "clippy --features esp32c6,boot-runtime --target riscv32imac-unknown-none-elf"
 
 # Match the board builds, so the standalone bl-loader payload is the same.
 [target.riscv32imc-unknown-none-elf]

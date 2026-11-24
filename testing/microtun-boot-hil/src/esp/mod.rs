@@ -15,7 +15,8 @@
 //! Later resets reuse the same CDC connection.
 //!
 //! One [`EspTarget`] describes each board (`crate::esp32c3::TARGET`,
-//! `crate::esp32c5::TARGET_N4`, `TARGET_N8`, `TARGET_N16`). Chip facts (ROM second-stage offset, flash
+//! `crate::esp32c5::TARGET_N4`, `TARGET_N8`, `TARGET_N16`,
+//! `crate::esp32c6::TARGET`). Chip facts (ROM second-stage offset, flash
 //! size, espflash chip and crystal, memory windows, Secure Boot key) come
 //! from `microtun-boot-tools-esp`'s board table, the same values the board's
 //! own flashing tool uses; the target adds only what the harness needs
@@ -173,6 +174,8 @@ pub fn targets() -> impl Iterator<Item = &'static EspTarget> {
         &crate::esp32c5::TARGET_N8,
         #[cfg(feature = "esp32c5-devkitc-1-n16")]
         &crate::esp32c5::TARGET_N16,
+        #[cfg(feature = "esp32c6-supermini")]
+        &crate::esp32c6::TARGET,
     ]
     .into_iter()
 }
@@ -227,7 +230,7 @@ fn flash_boot_sequence(
 }
 
 /// Boot after the Rust flasher's no-reset operation. The native
-/// USB-Serial/JTAG controller (identical on the ESP32-C3 and ESP32-C5)
+/// USB-Serial/JTAG controller (identical on the ESP32-C3, ESP32-C5 and ESP32-C6)
 /// interprets CDC control lines specially: DTR=false, RTS=false clears the
 /// download request; RTS=true with DTR=false resets the core; RTS=false
 /// releases it to boot the signed SPI image.

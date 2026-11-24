@@ -34,5 +34,6 @@ runs:
         "$signer" local init --key-id microtun-boot-local-p256 --algorithm p256
         "$signer" local init --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --algorithm rsa-pss
         "$signer" local init --key-id microtun-boot-local-esp32c5-sbv2-rsa3072 --algorithm rsa-pss
+        "$signer" local init --key-id microtun-boot-local-esp32c6-sbv2-rsa3072 --algorithm rsa-pss
         "$signer" local init --key-id microtun-boot-local-rp2350-rom-secp256k1 --algorithm secp256k1
         "$signer" local list

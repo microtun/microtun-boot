@@ -9,5 +9,6 @@ combines these constants with the board's own partitions.
 |---|---|
 | `chips/esp32c3` | ESP32-C3 |
 | `chips/esp32c5` | ESP32-C5 (rev v1.0 or later) |
+| `chips/esp32c6` | ESP32-C6 |
 | `chips/rp235x` | RP2350 family; one die covers RP2350A/B and RP2354A/B |
 | `chips/qemu` | The patched QEMU `mps2-an385` test machine |

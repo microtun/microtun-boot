@@ -8,7 +8,7 @@
 //!    RAM segments (IRAM, DRAM, RTC fast) must lie in application RAM and may
 //!    not reach the relocated handoff and its separate high-DRAM stack; flash
 //!    segments (IROM at 0x4200_0000, DROM at 0x3C00_0000 on C3; one shared
-//!    I/D window at 0x4200_0000 on C5) need
+//!    I/D window at 0x4200_0000 on C5 and C6) need
 //!    `flash offset % 64 KiB == vaddr % 64 KiB`, which holds when the ESP
 //!    image starts on a 64 KiB boundary (slot offset + image header size),
 //!    and must not need conflicting pages in the shared MMU table.
@@ -32,7 +32,7 @@ use crate::{SharedStorage, chip as layout};
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use log::info;
 use microtun_boot_core::{Fih, Policy, PublicKey, Region, ValidatedImage, fih, reauthenticate};
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 use microtun_boot_core::{SecurityCounterStore, counter_permits};
 
 use crate::loader_plan;
@@ -110,7 +110,7 @@ pub struct Authenticated<'a> {
 /// (resetting); there is no error path to skip.
 ///
 /// Call it after the last UART output. `random` should come from the TRNG.
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 #[inline(never)]
 pub fn confirm<F: NorFlash, S: SecurityCounterStore, R: rand::CryptoRng>(
     plan: Plan,
@@ -198,7 +198,7 @@ pub fn execute(confirmed: ConfirmedPlan) -> ! {
     // NOTE: IDF stage 2 has returned before this code executes. The regular
     // microtun boot stack and code are below this memory and remain live until jr.
     // Copy through the DRAM alias, as instruction memory is shared physical
-    // SRAM (on the C5 both aliases are the same address).
+    // SRAM (on the C5 and C6 both aliases are the same address).
     // The chip layout fixes these addresses; nothing in Rust allocates there.
     let loader_dram = core::ptr::with_exposed_provenance_mut::<u32>(LOADER_DRAM as usize);
     let plan_dram = core::ptr::with_exposed_provenance_mut::<u32>(PLAN_ADDRESS as usize);

@@ -3,7 +3,7 @@
 
 Install Rust/Cargo and Git. Make sure Cargo-installed binaries are on your `PATH` (normally via `~/.cargo/bin`). On Linux, installing the ESP tool also requires `libudev-dev` and `pkg-config`.
 
-**ESP32-C3 SuperMini and ESP32-C5-DevKitC-1:**
+**ESP32-C3 SuperMini, ESP32-C5-DevKitC-1 and ESP32-C6 SuperMini:**
 
 ```sh
 cargo install --locked --git https://github.com/microtun/microtun-boot.git \
@@ -48,7 +48,19 @@ microtun-boot-tools-esp --board "$BOARD" flash-bootloader --signed-bin \
 
 The complete signed image is verified (including its partition table and flash size against the board) and written at `0x2000`, where the ESP32-C5 ROM loads the second stage. It does not re-sign or rebuild anything. Use the same board for every application you flash afterwards.
 
-**ESP32 chips in Secure Download Mode** (a manually burned `ENABLE_SECURITY_DOWNLOAD` eFuse; neither profile sets it): flash through a **USB-to-UART** connection instead of USB-Serial-JTAG, and set `ESPPORT` to it explicitly (for example `/dev/ttyUSB0`). On the ESP32-C5-DevKitC-1 that is the board's USB-to-UART port. The ESP32-C3 SuperMini needs an external adapter on GPIO20/GPIO21. Over USB-Serial-JTAG, the RTC watchdog left armed by microtun boot can't be disabled in this mode and may reset the chip mid-write. See the board README's *Secure Download Mode* section.
+**ESP32-C6 SuperMini** — Connect the board through its USB-C connector (USB-Serial-JTAG) and set your serial port:
+
+```sh
+PROFILE=dev  # or release
+export ESPPORT=/dev/ttyACM0   # change to your serial port
+export MICROTUN_BOOT_OTP_BURN=YES
+microtun-boot-tools-esp --board esp32c6-supermini flash-bootloader --signed-bin \
+  "esp32c6-supermini-${PROFILE}-boot-chain.sbv2.bin"
+```
+
+The complete signed image is verified and written at `0x0`. It does not re-sign or rebuild anything.
+
+**ESP32 chips in Secure Download Mode** (a manually burned `ENABLE_SECURITY_DOWNLOAD` eFuse; neither profile sets it): flash through a **USB-to-UART** connection instead of USB-Serial-JTAG, and set `ESPPORT` to it explicitly (for example `/dev/ttyUSB0`). On the ESP32-C5-DevKitC-1 that is the board's USB-to-UART port. The ESP32-C3 SuperMini needs an external adapter on GPIO20/GPIO21, the ESP32-C6 SuperMini one on GPIO16/GPIO17. Over USB-Serial-JTAG, the RTC watchdog left armed by microtun boot can't be disabled in this mode and may reset the chip mid-write. See the board README's *Secure Download Mode* section.
 
 **RP2350 Pico 2** — Connect an SWD probe:
 

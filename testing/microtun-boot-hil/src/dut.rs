@@ -1,6 +1,6 @@
 //! The device under test: a physical board or an isolated QEMU guest.
 //!
-//! ESP32 boards (C3, C5) write their full image with the tools' ROM-command worker,
+//! ESP32 boards (C3, C5, C6) write their full image with the tools' ROM-command worker,
 //! then reset over the USB CDC console. RP2350 uses a bounded `microtun-boot-flash` SWD worker for
 //! fixture transport and probe resets. The worker exits before assertions so
 //! it cannot mask watchdog recovery.

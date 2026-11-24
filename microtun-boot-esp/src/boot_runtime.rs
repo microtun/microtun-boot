@@ -34,7 +34,7 @@ pub fn init() -> Peripherals {
 fn finish_flashboot_protection() {
     let tg0 = TIMG0::regs();
     if tg0.wdtconfig0().read().wdt_flashboot_mod_en().bit_is_set() {
-        // The PAC reset value is the WDT unlock key (C3 and C5: 0x50D83AA1).
+        // The PAC reset value is the WDT unlock key (C3, C5, C6: 0x50D83AA1).
         tg0.wdtwprotect().reset();
         tg0.wdtconfig0()
             .modify(|_, w| w.wdt_flashboot_mod_en().clear_bit());
@@ -75,8 +75,8 @@ pub fn reset_after_delay() -> ! {
     esp_hal::system::software_reset()
 }
 
-/// Randomness for the delays in front of fault-hardened checks on ESP32-C3:
-/// esp-hal's TRNG, with the SAR ADC entropy source running.
+/// Randomness for the delays in front of fault-hardened checks on ESP32-C3
+/// and ESP32-C6: esp-hal's TRNG, with the SAR ADC entropy source running.
 ///
 /// TODO(esp32c5): esp-hal 1.2.2 has no C5 TRNG entropy source, and ESP-IDF's
 /// second stage switches off its SAR ADC noise source before microtun boot.
@@ -84,13 +84,13 @@ pub fn reset_after_delay() -> ! {
 /// and verified. Until then the hardened checks run without random delays.
 ///
 /// Call [`BootRng::release`] before the handoff.
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 pub struct BootRng<'d> {
     trng: esp_hal::rng::Trng,
     source: esp_hal::rng::TrngSource<'d>,
 }
 
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 impl<'d> BootRng<'d> {
     /// Take the RNG and its entropy source so no other driver reconfigures them.
     pub fn new(rng: esp_hal::peripherals::RNG<'d>, adc: esp_hal::peripherals::ADC1<'d>) -> Self {
@@ -99,7 +99,7 @@ impl<'d> BootRng<'d> {
         Self { trng, source }
     }
 
-    /// Stop the entropy source (the C3's SAR ADC) before the RAM handoff.
+    /// Stop the entropy source (the SAR ADC) before the RAM handoff.
     pub fn release(self) {
         let Self { trng, source } = self;
         // The HAL refuses to disable the source while a TRNG user is alive.
@@ -112,7 +112,7 @@ impl<'d> BootRng<'d> {
     }
 }
 
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 impl rand::RngCore for BootRng<'_> {
     fn next_u32(&mut self) -> u32 {
         self.word()
@@ -127,5 +127,5 @@ impl rand::RngCore for BootRng<'_> {
     }
 }
 
-#[cfg(feature = "esp32c3")]
+#[cfg(any(feature = "esp32c3", feature = "esp32c6"))]
 impl rand::CryptoRng for BootRng<'_> {}

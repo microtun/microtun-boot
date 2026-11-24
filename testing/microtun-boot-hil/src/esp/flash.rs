@@ -1,5 +1,5 @@
 //! The board's whole flash: the signed ESP-IDF second stage at the chip's
-//! ROM offset (`0x0` on the ESP32-C3, `0x2000` on the ESP32-C5), the
+//! ROM offset (`0x0` on the ESP32-C3 and ESP32-C6, `0x2000` on the ESP32-C5), the
 //! partition table, signed factory microtun boot, then the data slots.
 //! Everything is derived from `boards/<board>/layout/partitions.csv` by
 //! `microtun-boot-tools-esp layout`, as `microtun-boot-tools-esp

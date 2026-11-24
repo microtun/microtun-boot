@@ -1,7 +1,7 @@
 //! ESP-IDF second stage, SBv2 boot-chain signing and provisioning flash.
 //!
 //! The chip's mask ROM loads the second stage from its fixed offset
-//! (`0x0` on the ESP32-C3, `0x2000` on the ESP32-C5). The merged boot chain
+//! (`0x0` on the ESP32-C3 and ESP32-C6, `0x2000` on the ESP32-C5). The merged boot chain
 //! starts at that offset and runs to the end of the factory partition.
 use crate::{board::Board, flash::write_flash, image::convert, layout::EspLayout};
 use anyhow::{Context, Result, ensure};
@@ -317,7 +317,7 @@ mod tests {
     use super::*;
     use crate::board::{
         BOARDS, ESP32C3_SUPERMINI, ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8,
-        ESP32C5_DEVKITC_1_N16,
+        ESP32C5_DEVKITC_1_N16, ESP32C6_SUPERMINI,
     };
 
     /// An ESP image of `len` bytes whose header names `board`'s flash size.
@@ -362,6 +362,8 @@ mod tests {
     #[test]
     fn merged_image_spans_stage2_table_and_factory_partition() {
         merged_image_layout(&ESP32C3_SUPERMINI, 0x60000);
+        // The C6 ROM, like the C3's, loads the second stage from 0x0.
+        merged_image_layout(&ESP32C6_SUPERMINI, 0x60000);
         // The C5 ROM loads the second stage from 0x2000. Every variant has
         // the same boot chain span; only the slots beyond it grow.
         for board in [

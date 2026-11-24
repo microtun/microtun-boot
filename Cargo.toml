@@ -16,6 +16,9 @@ members = [
     "boards/esp32c5-devkitc-1/microtun-boot",
     "boards/esp32c5-devkitc-1/firmware",
     "boards/esp32c5-devkitc-1/layout",
+    "boards/esp32c6-supermini/microtun-boot",
+    "boards/esp32c6-supermini/firmware",
+    "boards/esp32c6-supermini/layout",
     "boards/rp2350-pico2/microtun-boot",
     "boards/rp2350-pico2/firmware",
     "boards/rp2350-pico2/layout",
@@ -26,6 +29,7 @@ members = [
     "testing/microtun-boot-test-hooks",
     "examples/esp32c3-supermini-blinky",
     "examples/esp32c5-devkitc-1-blinky",
+    "examples/esp32c6-supermini-blinky",
     "examples/rp2350-pico2-blinky",
 ]
 # Root commands select only host-side packages; embedded board builds must
@@ -53,7 +57,7 @@ unsafe_code = "forbid"
 name = "microtun-boot"
 
 [workspace.package]
-version = "0.2.1"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.95"
 license = "PolyForm-Noncommercial-1.0.0"
@@ -71,18 +75,20 @@ microtun-boot-tools-qemu = { path = "microtun-boot-qemu/tools", default-features
 # Lightweight, board-independent chip descriptions.
 microtun-boot-chip-esp32c3 = { path = "chips/esp32c3" }
 microtun-boot-chip-esp32c5 = { path = "chips/esp32c5" }
+microtun-boot-chip-esp32c6 = { path = "chips/esp32c6" }
 microtun-boot-chip-rp235x = { path = "chips/rp235x" }
 microtun-boot-chip-qemu = { path = "chips/qemu" }
 
 # Platform crates and board layout crates. The ESP crates serve several
-# chips: each ESP member selects its chip feature itself (`esp32c3` or
-# `esp32c5`), because a chip feature here would be unified into every
+# chips: each ESP member selects its chip feature itself (`esp32c3`,
+# `esp32c5` or `esp32c6`), because a chip feature here would be unified into every
 # board built from this workspace.
 microtun-boot-esp = { path = "microtun-boot-esp", default-features = false }
 microtun-boot-rp = { path = "microtun-boot-rp", default-features = false, features = ["rp235xa"] }
 microtun-boot-qemu = { path = "microtun-boot-qemu", default-features = false, features = ["mps2-an385"] }
 microtun-boot-layout-esp32c3-supermini = { path = "boards/esp32c3-supermini/layout" }
 microtun-boot-layout-esp32c5-devkitc-1 = { path = "boards/esp32c5-devkitc-1/layout" }
+microtun-boot-layout-esp32c6-supermini = { path = "boards/esp32c6-supermini/layout" }
 microtun-boot-layout-rp2350-pico2 = { path = "boards/rp2350-pico2/layout" }
 microtun-boot-layout-qemu = { path = "boards/qemu/layout" }
 

@@ -161,6 +161,59 @@ pub static ESP32C5: ChipInfo = {
     }
 };
 
+pub static ESP32C6: ChipInfo = {
+    use microtun_boot_layout_esp32c6_supermini as c;
+    ChipInfo {
+        name: c::CHIP,
+        display: "ESP32-C6",
+        espflash: Chip::Esp32c6,
+        xtal: XtalFrequency::_40Mhz,
+        image_chip_id: 13,
+        rom_bootloader_offset: c::ROM_BOOTLOADER_OFFSET,
+        // 0x0..0x10000: the partition table follows at 0x10000 (IDF's Secure
+        // Boot V2 limit, 64 KiB plus the signature sector, is not reached).
+        max_stage2_signed: 0x10000,
+        erase_size: c::ERASE_SIZE,
+        header_size: c::HEADER_SIZE,
+        mmu_page_size: c::MMU_PAGE_SIZE,
+        partition_table_size: c::PARTITION_TABLE_SIZE,
+        iram: (0x4080_0000, 0x4088_0000),
+        iram_dram_offset: c::IRAM_DRAM_OFFSET,
+        dram: (0x4080_0000, 0x4088_0000),
+        rtc_fast: (c::RTC_FAST_BASE, c::RTC_FAST_BASE + c::RTC_FAST_SIZE),
+        irom_base: 0x4200_0000,
+        drom_base: 0x4200_0000,
+        mmu_entries: 256,
+        protected_start: c::PROTECTED_START,
+        rom_data_start: c::ROM_DATA_START,
+        boot_info_address: c::BOOT_INFO_ADDRESS,
+        boot_info_size: c::BOOT_INFO_SIZE,
+        constants: || {
+            use microtun_boot_layout_esp32c6_supermini::*;
+            microtun_boot_build::named_constants![
+                ROM_BOOTLOADER_OFFSET,
+                ERASE_SIZE,
+                HEADER_SIZE,
+                MMU_PAGE_SIZE,
+                PARTITION_TABLE_SIZE,
+                IRAM_DRAM_OFFSET,
+                BL_DRAM_BASE,
+                PROTECTED_START,
+                IRAM_HANDOFF_SIZE,
+                IDF_IRAM_LOADER_START,
+                BOOT_INFO_ADDRESS,
+                BOOT_INFO_SIZE,
+                ROM_DATA_START,
+                RTC_FAST_BASE,
+                RTC_FAST_SIZE,
+                LOADER_PLAN_ADDRESS,
+                LOADER_STACK_BOTTOM,
+                LOADER_STACK_TOP,
+            ]
+        },
+    }
+};
+
 /// One supported board: its chip, configured flash capacity and boot-chain key.
 #[derive(Debug)]
 pub struct Board {
@@ -227,20 +280,35 @@ pub static ESP32C5_DEVKITC_1_N16: Board = esp32c5_devkitc_1(
     microtun_boot_layout_esp32c5_devkitc_1::n16::FLASH_SIZE,
 );
 
+/// ESP32-C6 SuperMini: an ESP32-C6FH4 with 4 MiB of in-package flash.
+pub static ESP32C6_SUPERMINI: Board = Board {
+    name: "esp32c6-supermini",
+    dir_name: "esp32c6-supermini",
+    partitions: "layout/partitions.csv",
+    chip: &ESP32C6,
+    flash_size: microtun_boot_layout_esp32c6_supermini::FLASH_SIZE,
+    dev_key: DevKey {
+        key_id: "microtun-boot-local-esp32c6-sbv2-rsa3072",
+        env: "ESP_SBV2_KEY_ID",
+    },
+};
+
 /// Every supported board.
-pub static BOARDS: [&Board; 4] = [
+pub static BOARDS: [&Board; 5] = [
     &ESP32C3_SUPERMINI,
     &ESP32C5_DEVKITC_1_N4,
     &ESP32C5_DEVKITC_1_N8,
     &ESP32C5_DEVKITC_1_N16,
+    &ESP32C6_SUPERMINI,
 ];
 
 /// The names of every supported board.
-pub const BOARD_NAMES: [&str; 4] = [
+pub const BOARD_NAMES: [&str; 5] = [
     "esp32c3-supermini",
     "esp32c5-devkitc-1-n4",
     "esp32c5-devkitc-1-n8",
     "esp32c5-devkitc-1-n16",
+    "esp32c6-supermini",
 ];
 
 impl Board {
@@ -315,6 +383,7 @@ mod tests {
             assert_eq!(board.header_flash_size().unwrap(), header);
         }
         assert_eq!(ESP32C3_SUPERMINI.idf_flash_size().unwrap(), "4MB");
+        assert_eq!(ESP32C6_SUPERMINI.idf_flash_size().unwrap(), "4MB");
     }
 
     #[test]

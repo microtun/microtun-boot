@@ -5,10 +5,18 @@
 //! regions live in the chip's module. Nothing here depends on the board:
 //! flash size and partition geometry come from the partition table.
 
-#[cfg(all(feature = "esp32c3", feature = "esp32c5"))]
-compile_error!("microtun-boot-esp: the `esp32c3` and `esp32c5` features are mutually exclusive");
-#[cfg(not(any(feature = "esp32c3", feature = "esp32c5")))]
-compile_error!("microtun-boot-esp: enable exactly one chip feature (`esp32c3` or `esp32c5`)");
+#[cfg(any(
+    all(feature = "esp32c3", feature = "esp32c5"),
+    all(feature = "esp32c3", feature = "esp32c6"),
+    all(feature = "esp32c5", feature = "esp32c6"),
+))]
+compile_error!(
+    "microtun-boot-esp: the `esp32c3`, `esp32c5` and `esp32c6` features are mutually exclusive"
+);
+#[cfg(not(any(feature = "esp32c3", feature = "esp32c5", feature = "esp32c6")))]
+compile_error!(
+    "microtun-boot-esp: enable exactly one chip feature (`esp32c3`, `esp32c5` or `esp32c6`)"
+);
 
 macro_rules! shared_constants {
     ($krate:ident) => {
@@ -34,6 +42,13 @@ shared_constants!(microtun_boot_chip_esp32c5);
 mod esp32c5;
 #[cfg(feature = "esp32c5")]
 pub use esp32c5::*;
+
+#[cfg(feature = "esp32c6")]
+shared_constants!(microtun_boot_chip_esp32c6);
+#[cfg(feature = "esp32c6")]
+mod esp32c6;
+#[cfg(feature = "esp32c6")]
+pub use esp32c6::*;
 
 // Chip-independent consistency of the shared values.
 const _: () = {

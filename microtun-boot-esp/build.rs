@@ -49,6 +49,11 @@ const CHIPS: &[(&str, &str, ChipLayout)] = &[
         "riscv32imac-unknown-none-elf",
         chip_layout!(microtun_boot_chip_esp32c5),
     ),
+    (
+        "esp32c6",
+        "riscv32imac-unknown-none-elf",
+        chip_layout!(microtun_boot_chip_esp32c6),
+    ),
 ];
 
 #[cfg(feature = "boot-runtime")]
@@ -303,8 +308,8 @@ mod loader {
 }
 
 /// esp-hal's `enable-pmp` option (on by default for RISC-V chips other than
-/// the C2/C3) *locks* PMP entries over the third stage's own `.rwtext`,
-/// `.stack` and data. Locked entries bind machine mode until the next reset,
+/// the C2/C3, so for the C5 and C6) *locks* PMP entries over the third
+/// stage's own `.rwtext`, `.stack` and data. Locked entries bind machine mode until the next reset,
 /// so the RAM handoff loader could not copy the application over that RAM:
 /// the first store would fault and the board would reset forever.
 #[cfg(feature = "boot-runtime")]

@@ -1,0 +1,34 @@
+[package]
+license.workspace = true
+name = "esp32c6-supermini-blinky"
+description = "ESP32-C6 SuperMini Embassy blinky application booted by microtun boot"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "esp32c6-supermini-blinky"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+microtun-boot-esp = { workspace = true, features = ["esp32c6"] }
+
+# esp-rtos supplies the Embassy executor and time driver: do not enable an
+# embassy-executor arch-* feature or an embassy-time generic queue.
+embassy-executor = { workspace = true }
+embassy-time = { workspace = true }
+esp-bootloader-esp-idf = { workspace = true, features = ["esp32c6"] }
+# Same esp-hal release as microtun boot's ESP32-C6 board crates.
+esp-hal = { version = "1.2.2", features = ["esp32c6", "unstable", "log-04"] }
+esp-rtos = { version = "0.4", default-features = false, features = ["esp32c6", "embassy", "log-04"] }
+esp-println = { workspace = true, features = ["esp32c6", "critical-section"] }
+log = { workspace = true }
+# Panic handler: prints a backtrace over USB Serial/JTAG and lets the RTC
+# watchdog reset the board (and revert an unconfirmed trial image).
+esp-backtrace = { version = "0.20", features = ["esp32c6", "panic-handler", "println"] }
+
+[build-dependencies]
+microtun-boot-build = { workspace = true }

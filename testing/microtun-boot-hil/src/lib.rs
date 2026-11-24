@@ -6,22 +6,22 @@
 //! `tests/security_counter.rs`, which consumes one OTP/eFuse epoch on physical
 //! boards or advances an isolated file-backed counter under QEMU.
 //! Ordinary fixtures are signed using the actual chip eFuse/OTP floor (read
-//! via JTAG/probe-rs on ESP32-C3/C5 or SWD on RP2350),
+//! via JTAG/probe-rs on ESP32-C3/C6 or SWD on RP2350; not on ESP32-C5),
 //! or the QEMU eFuse backing file.
 //! Both suites build the
 //! real bootloader and the example firmware, sign it with upstream
 //! `imgtool`, compose a complete flash image of the board's size with
 //! microtun-boot-core's own updater/trailer code, reset, and assert on the
 //! console. Physical fixtures use a shared `microtun-boot-flash` worker (Rust
-//! espflash for ESP32-C3/C5 or probe-rs LZ4 restore for RP2350).
+//! espflash for ESP32-C3/C5/C6 or probe-rs LZ4 restore for RP2350).
 //! RP2350 bootloader variants are ROM-signed with the default development OTP policy.
 //! The harness modules
 //! below are board-independent; each board
 //! module contributes a [`Board`] description plus its executable-format code
 //! (ELF conversion, malformed-image mutations) and flash layout. Select the
 //! board under test with `esp32c3-supermini`, `esp32c5-devkitc-1-n4`,
-//! `esp32c5-devkitc-1-n8`, `esp32c5-devkitc-1-n16`, `rp2350-pico2`, or
-//! `qemu`. The QEMU backend uses isolated guest processes
+//! `esp32c5-devkitc-1-n8`, `esp32c5-devkitc-1-n16`, `esp32c6-supermini`,
+//! `rp2350-pico2`, or `qemu`. The QEMU backend uses isolated guest processes
 //! and persistent NOR files instead of a probe.
 //!
 //! Harness modules:
@@ -34,7 +34,7 @@
 //! * [`scenario`]: small helpers shared by the scenario tests.
 //! * [`process`]: bounded subprocesses with live, libtest-captured output.
 //!
-//! Board modules: `esp32c3`, `esp32c5`, `rp2350` and `qemu` (selected by
+//! Board modules: `esp32c3`, `esp32c5`, `esp32c6`, `rp2350` and `qemu` (selected by
 //! feature). The ESP boards are descriptors over the shared `esp` back-end;
 //! `esp32c5` describes the three ESP32-C5-DevKitC-1 flash variants.
 
@@ -63,6 +63,8 @@ pub mod esp;
 pub mod esp32c3;
 #[cfg(feature = "esp32c5")]
 pub mod esp32c5;
+#[cfg(feature = "esp32c6-supermini")]
+pub mod esp32c6;
 #[cfg(feature = "rp2350-pico2")]
 pub mod rp2350;
 

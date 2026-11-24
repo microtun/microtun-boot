@@ -16,7 +16,7 @@ microtun boot is the last link in a chain of signature checks rooted in each chi
 | --- | --- | --- |
 | 1. Mask ROM | Verifies the ESP-IDF second stage (Secure Boot V2, RSA-3072); anchor: key digest in eFuse | Verifies microtun boot (secp256k1); anchor: BOOTKEY0 hash in OTP, burned on first boot |
 | 2. Second stage | ESP-IDF second stage verifies microtun boot with the same Secure Boot V2 key; reads the unsigned partition table | None; the ROM verifies microtun boot directly |
-| 3. microtun boot | Runs as the factory application; validates the image (P-256, policy, eFuse counter on C3 only), performs upgrades, re-authenticates before handoff | Runs from SRAM; validates the image (P-256, policy, OTP counter), performs upgrades, locks OTP pages 1, 2 and 32, re-authenticates before handoff |
+| 3. microtun boot | Runs as the factory application; validates the image (P-256, policy, eFuse counter on C3 and C6, not C5), performs upgrades, re-authenticates before handoff | Runs from SRAM; validates the image (P-256, policy, OTP counter), performs upgrades, locks OTP pages 1, 2 and 32, re-authenticates before handoff |
 | 4. Handoff | RAM loader in protected IRAM copies RAM segments and programs the MMU, re-reading flash after the final check | Maps the selected slot into the application window and jumps to the reset vector |
 | 5. Application | Full privilege; can write flash and eFuses | Arm Secure; can write flash and any OTP page not locked at handoff |
 
@@ -27,7 +27,7 @@ On ESP32 the ROM's guarantee reaches microtun boot through the ESP-IDF second st
 | ESP Secure Boot V2 RSA-3072 key digest | ESP32 eFuse | IDF second stage and microtun boot |
 | RP2350 secp256k1 key hash (BOOTKEY0) | RP2350 OTP page 2 | microtun boot |
 | P-256 key ring | Compiled into microtun boot only | Application images |
-| Security counter | ESP32-C3 eFuse `SECURE_VERSION` (16 epochs); RP2350 OTP page 32 (504 epochs) | Rollback floor for application images |
+| Security counter | ESP32-C3 and ESP32-C6 eFuse `SECURE_VERSION` (16 epochs each); RP2350 OTP page 32 (504 epochs) | Rollback floor for application images |
 
 microtun boot also consumes inputs that are **not** authenticated: slot trailers (upgrade requests, confirmation, swap progress), the image header before validation, and on ESP32 the partition table. Each limitation that follows from this is listed under Known limitations.
 
@@ -40,7 +40,7 @@ microtun boot commits to seven properties, subject to the chip-specific exceptio
 | O1 | Only authentic images execute | SHA-256 over header, body and protected TLVs; ECDSA P-256 signature checked against a compiled-in key ring, selected by `KEYHASH` or `PUBKEY` TLV | Before an image is installed, and again immediately before handoff |
 | O2 | Signed metadata cannot be swapped | TLVs outside the signed area are allow-listed; `SEC_CNT`, VID and CID are accepted only from the protected area | During every image validation |
 | O3 | Images are bound to a product class | Protected imgtool VID/CID UUIDs must match the board's image policy | During every image validation |
-| O4 | Hardware rollback floor | Monotonic eFuse (ESP32-C3) or OTP (RP2350) counter; not available on ESP32-C5 (L8b); images below the floor are rejected; burned for selected permanent/confirmed images or for confirmations preserved before swap/overwrite; always after re-authentication | On every boot, before each counter burn, and at handoff |
+| O4 | Hardware rollback floor | Monotonic eFuse (ESP32-C3, ESP32-C6) or OTP (RP2350) counter; not available on ESP32-C5 (L8b); images below the floor are rejected; burned for selected permanent/confirmed images or for confirmations preserved before swap/overwrite; always after re-authentication | On every boot, before each counter burn, and at handoff |
 | O5 | Malformed executables are rejected | ESP segment plan and Cortex-M vector checks confine RAM loads, MMU maps, stack and entry point | Before an image is installed, and again at handoff |
 | O6 | Power-loss safety of upgrades | Restartable swap, overwrite and direct-XIP state machines; trailer destroyed back to front | During upgrades and on resume after power loss |
 | O7 | Bootloader remains the only firmware execution authority | The application updater holds no trusted keys and can stage invalid or policy-rejected candidates; microtun boot independently authenticates signatures, policy and rollback counter (where supported) before installing or executing an image | At boot selection and again before handoff |
@@ -92,6 +92,7 @@ Hardware detectors complement the software:
 | --- | --- | --- | --- |
 | ESP32-C3 | Clock glitch reset only | From IDF second stage onward; ROM unprotected | Yes, no lock exists |
 | ESP32-C5 | Power (voltage) glitch reset only; the chip has no clock glitch detector | From IDF second stage onward; ROM unprotected | Yes, no lock exists |
+| ESP32-C6 | None: ESP-IDF supports no clock or power glitch reset on this chip (L8c) | Software hardening only | Not applicable |
 | RP2350 | Four power/clock glitch detectors, armed from OTP after enrollment | From power-on, including ROM signature check | No, configuration locked until reset |
 
 ## Known limitations
@@ -103,13 +104,14 @@ The hardware security counter is the only rollback control that survives an atta
 | L1 | Core, swap mode | A revert skips the version check and is selected purely from the primary trailer, which sits in its own sectors. A forged mid-swap status is resumed without any candidate check. | A2 can reinstall any older signed image and have it marked permanent | Bump `SEC_CNT` on every security-fix release where enforced (not C5) |
 | L2 | Core, all modes | The downgrade reference version is read from the primary header, which is not authenticated at that point | A2 can erase the header to defeat the check | Same as L1 |
 | L3 | Both boards | Images are validated, then executed from or re-read out of external flash | A4 can substitute code after validation | Flash encryption or in-package flash; physical protection |
-| L4 | Both boards | No hardware anti-rollback for microtun boot itself. On ESP32-C3 `SECURE_VERSION` is consumed by the application counter; IDF anti-rollback is disabled on both ESP chips; on RP2350 the ROM rollback version is unused | An older, vulnerable microtun boot signed with the same root key can be reflashed | Plan key revocation (ESP Secure Boot V2 digest slots) or ROM rollback versions before the first microtun boot fix ships |
+| L4 | Both boards | No hardware anti-rollback for microtun boot itself. On ESP32-C3 and ESP32-C6 `SECURE_VERSION` is consumed by the application counter; IDF anti-rollback is disabled on every ESP chip; on RP2350 the ROM rollback version is unused | An older, vulnerable microtun boot signed with the same root key can be reflashed | Plan key revocation (ESP Secure Boot V2 digest slots) or ROM rollback versions before the first microtun boot fix ships |
 | L5 | Both boards | When `MICROTUN_BOOT_PUBKEYS` is unset, builds trust the P-256 key `microtun-boot-local-p256` (or `MICROTUN_SIGNER_KEY_ID`) from microtun-signer's local store; without `MICROTUN_SIGNER_URL`, host tools sign with the local development keys. The keys are generated on each machine, outside the repository, **not committed**. A missing key makes the build or signing operation fail; with a signer service URL, the build requires an explicit `MICROTUN_BOOT_PUBKEYS`. | A release can accidentally trust or use a development key; exposure of its private half would allow unauthorized signed updates | Configure production public keys and signing credentials explicitly; verify every release key ring against approved production key fingerprints |
 | L6 | ESP32 | Slot locations come from the unsigned partition table. Only flash below the table end is reserved, so slots may overlap the `microtun-boot`, `nvs`, `phy_init` or `storage` partitions | A corrupted or edited table turns microtun boot's erase and copy operations against its own partition or application data | Write-protect or verify the table at manufacture |
 | L7 | ESP32 | Flash encryption is unsupported; the RAM loader reads segments with raw ROM flash reads; neither IDF profile disables ROM download mode | Flash is readable and writable over USB/UART; enabling encryption later requires loader changes | Manufacturing lockdown of download mode |
-| L8 | ESP32-C3 | The counter has 16 epochs for the product's lifetime, and eFuses stay programmable by the application | A2 can exhaust the epoch budget or burn unrelated eFuses | Reserve epochs for security releases only |
+| L8 | ESP32-C3, ESP32-C6 | The counter has 16 epochs for the product's lifetime, and eFuses stay programmable by the application | A2 can exhaust the epoch budget or burn unrelated eFuses | Reserve epochs for security releases only |
 | L8a | ESP32-C5 | esp-hal 1.2.2 has no TRNG entropy source; random delays are disabled rather than using a pseudo-RNG | No timing jitter before the hardened checks | Rely on the power glitch detector and physical protection; TODO: restore verified TRNG jitter |
 | L8b | ESP32-C5 | Hardware security counter disabled due to the eFuse issue with esp-hal 1.2.2; `SEC_CNT` is not required or enforced | Older signed images can be reflashed regardless of epoch; O4 does not apply | Do not rely on C5 for hardware anti-rollback. TODO: verify the eFuse implementation on expendable hardware and restore policy, store, handoff floor check, boot info and HIL coverage |
+| L8c | ESP32-C6 | The chip has no glitch detector that ESP-IDF supports, so no detector reset backs the software hardening; the eFuse counter and the RAM handoff's C6 register sequence are new and not yet covered by a hardware HIL run in CI | Fault injection meets only the hardened, TRNG-jittered checks; no reset on a detected glitch | Physical protection; run the HIL smoke and `security-counter` suites on an expendable board before relying on the port |
 | L9 | RP2350 | Enrollment trusts whatever key signed the running microtun boot (trust on first use) and runs unconditionally; without `production` the default OTP policy keeps SWD and spare ROM key slots open; the host-tool acknowledgement is bypassed by flashing directly | A fresh board can be irreversibly locked to a locally generated development ROM key or to an unintended key | Build with `--features production` and provision only in a controlled environment using an approved ROM signing key |
 | L10 | RP2350 | BOOTSEL/PICOBOOT stays enabled; OTP page locks last only until reset; OTP pages other than 1, 2 and 32 are unprotected | A3 retains flash access; other OTP data is writable by A2 | Burn permanent page locks and disable BOOTSEL as a manufacturing step |
 
@@ -130,9 +132,9 @@ The objectives above hold in production only if every item below is done. Each o
 
 - [ ] Use the `release` IDF profile so JTAG is disabled and unused Secure Boot V2 digest slots are revoked.
 - [ ] Lock down ROM download mode at manufacture.
-- [ ] Keep IDF `APP_ANTI_ROLLBACK` disabled; `SECURE_VERSION` belongs to microtun boot on C3 and is reserved for future support on C5.
+- [ ] Keep IDF `APP_ANTI_ROLLBACK` disabled; `SECURE_VERSION` belongs to microtun boot on C3 and C6 and is reserved for future support on C5.
 - [ ] Verify the flashed partition table matches the board's reference partition layout at end of line.
-- [ ] Budget the 16 available C3 rollback epochs across the product lifetime. C5 has no enforced epochs for now; revisit its 9-bit allocation when support returns.
+- [ ] Budget the 16 available C3 and C6 rollback epochs across the product lifetime. C5 has no enforced epochs for now; revisit its 9-bit allocation when support returns.
 
 **RP2350**
 

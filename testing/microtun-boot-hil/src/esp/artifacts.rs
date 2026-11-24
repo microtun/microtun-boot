@@ -14,7 +14,7 @@ pub struct Bootloader {
     /// Signed microtun boot app, placed in the table's `microtun-boot` partition.
     pub image: Vec<u8>,
     /// Signed standard ESP-IDF second stage, placed at the chip's ROM
-    /// second-stage offset (`0x0` on the ESP32-C3, `0x2000` on the ESP32-C5).
+    /// second-stage offset (`0x0` on the ESP32-C3 and ESP32-C6, `0x2000` on the ESP32-C5).
     pub idf_image: Vec<u8>,
 }
 

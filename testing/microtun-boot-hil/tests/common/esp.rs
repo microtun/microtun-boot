@@ -1,5 +1,5 @@
-//! Shared fixtures for the runtime scenarios on a real ESP32 board (C3 or
-//! C5, whichever board feature is enabled). Everything board-specific comes
+//! Shared fixtures for the runtime scenarios on a real ESP32 board (C3, C5
+//! or C6, whichever board feature is enabled). Everything board-specific comes
 //! from [`ESP`]; the scenarios themselves are shared with RP2350.
 
 pub use microtun_boot_core::Slot;
@@ -33,10 +33,17 @@ pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N8;
     ))
 ))]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N16;
+#[cfg(all(
+    feature = "esp32c6-supermini",
+    not(any(feature = "esp32c3-supermini", feature = "esp32c5"))
+))]
+pub static ESP: &EspTarget = &microtun_boot_hil::esp32c6::TARGET;
 
 /// Number of SECURE_VERSION epochs (eFuse bits) on the board's chip.
 #[cfg(feature = "esp32c3-supermini")]
 pub const SECURITY_COUNTER_CAPACITY: u32 = microtun_boot_hil::esp32c3::SECURE_VERSION.bits;
+#[cfg(all(feature = "esp32c6-supermini", not(feature = "esp32c3-supermini")))]
+pub const SECURITY_COUNTER_CAPACITY: u32 = microtun_boot_hil::esp32c6::SECURE_VERSION.bits;
 
 /// imgtool for the board's slot geometry, with the RP2350/QEMU signature.
 pub mod sign {
@@ -89,7 +96,7 @@ pub struct Malformed {
 
 /// One smoke mutation targeting the ESP protected loader: the first
 /// instruction-RAM segment is moved onto the protected handoff region (on
-/// the ESP32-C5 instruction and data RAM are one bus, so this may be any RAM
+/// the ESP32-C5 and ESP32-C6 instruction and data RAM are one bus, so this may be any RAM
 /// segment). Re-signing isolates the executable-format check from signature
 /// validation. The address ranges come from the host tools' chip table; the
 /// on-device loader remains responsible for validating every candidate.
@@ -131,8 +138,8 @@ pub fn wrong_rom_fixed(flash: &FlashImage) -> u32 {
 
 pub fn assert_watchdog_reset(dut: &Dut, from: usize) {
     // esp-hal's reset reasons distinguish digital-core and full system RTC
-    // (LP on the ESP32-C5) watchdog resets, with the same names on both
-    // chips. Neither software nor probe resets qualify.
+    // (LP on the ESP32-C5 and ESP32-C6) watchdog resets, with the same names
+    // on every chip. Neither software nor probe resets qualify.
     let (_, hello) = dut.expect_from(from, "@fbt hello", BOOT).unwrap();
     assert!(
         matches!(

@@ -5,6 +5,10 @@
 //!   no clock glitch detector; ESP-IDF's
 //!   `bootloader_ana_clock_glitch_reset_config` is a no-op there.
 //!
+//! The ESP32-C6 has none: ESP-IDF v5.5.5 documents its
+//! `bootloader_ana_clock_glitch_reset_config` as "not supported" and enables
+//! no glitch reset, so this module is not compiled for the C6.
+//!
 //! In both cases ESP-IDF's second stage configures the detector first; this
 //! module re-asserts the reset enable and reads it back, so microtun boot does
 //! not silently depend on that stage's configuration. Neither chip has a lock

@@ -1,4 +1,4 @@
-//! ESP32-C3/C5 ROM-only flashing via `espflash` (no RAM stub).
+//! ESP32-C3/C5/C6 ROM-only flashing via `espflash` (no RAM stub).
 //!
 //! Keep microtun boot's flash layout checks and USB port selection here; delegate
 //! serial reset, SLIP, ROM commands and data transfers to `espflash`.
@@ -58,8 +58,8 @@ const fn watchdogs(chip: Chip) -> Option<Watchdogs> {
             swd_key: 0x8f1d_312a,
             swd_auto_feed: 1 << 31,
         }),
-        // LP_WDT (0x600B_1C00)
-        Chip::Esp32c5 => Some(Watchdogs {
+        // LP_WDT (0x600B_1C00), the same block on both chips.
+        Chip::Esp32c5 | Chip::Esp32c6 => Some(Watchdogs {
             rwdt_config0: 0x600b_1c00,
             rwdt_wprotect: 0x600b_1c18,
             rwdt_key: 0x50d8_3aa1,
@@ -324,7 +324,7 @@ fn flash_begin(address: u32, erase_size: u32, blocks: u32) -> Command<'static> {
         blocks,
         block_size: ROM_BLOCK_SIZE,
         offset: address,
-        supports_encryption: true, // C3/C5 ROMs take a fifth, zero encryption word.
+        supports_encryption: true, // C3/C5/C6 ROMs take a fifth, zero encryption word.
     }
 }
 
@@ -660,10 +660,17 @@ mod tests {
         for board in crate::board::BOARDS {
             let chip = board.chip.espflash;
             let w = watchdogs(chip).expect("every supported board has watchdogs to disable");
-            assert_eq!(Some(w.rwdt_config0), chip.wdt_config0(), "{chip}");
-            assert_eq!(Some(w.rwdt_wprotect), chip.wdt_wprotect(), "{chip}");
+            // espflash 4.7 lists the RTC watchdog only for chips it can reset
+            // through it, which excludes the C6. Where it is listed, agree.
+            if chip != Chip::Esp32c6 {
+                assert_eq!(Some(w.rwdt_config0), chip.wdt_config0(), "{chip}");
+                assert_eq!(Some(w.rwdt_wprotect), chip.wdt_wprotect(), "{chip}");
+            }
             assert_eq!(w.rwdt_key, 0x50d8_3aa1);
         }
+        // ESP-IDF v5.5.5: the C6 has the C5's LP_WDT block at 0x600B_1C00
+        // (lp_wdt_reg.h, lpwdt_ll.h), with the same keys and auto-feed bit.
+        assert_eq!(watchdogs(Chip::Esp32c6), watchdogs(Chip::Esp32c5));
     }
 
     #[test]

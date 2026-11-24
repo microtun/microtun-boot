@@ -10,7 +10,7 @@ mod common;
 
 use common::*;
 
-// 16 epochs on the ESP32-C3.
+// 16 epochs on the ESP32-C3 and ESP32-C6.
 #[cfg(feature = "esp")]
 const CAPACITY: u32 = SECURITY_COUNTER_CAPACITY;
 #[cfg(feature = "rp2350-pico2")]

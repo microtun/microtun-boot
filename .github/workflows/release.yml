@@ -32,6 +32,12 @@ env:
   MICROTUN_BOOT_DEV_ESP32C5_SBV2_KEY_SHA256: "56865179a2b45bf1812c273ab7908e2ca79ace545883056717c041d818c21d52"
   MICROTUN_BOOT_RELEASE_ESP32C5_SBV2_KEY_ID: microtun-boot-release-esp32c5-sbv2-rsa3072-v1
   MICROTUN_BOOT_RELEASE_ESP32C5_SBV2_KEY_SHA256: "79ab50453248768bb557a19ee016f71ec2a295fa81e84107cfc486fd49348067"
+  # TODO(esp32c6): fill in both pins (command above) before tagging a
+  # release. The sign job refuses to run with an empty pin.
+  MICROTUN_BOOT_DEV_ESP32C6_SBV2_KEY_ID: microtun-boot-dev-esp32c6-sbv2-rsa3072-v1
+  MICROTUN_BOOT_DEV_ESP32C6_SBV2_KEY_SHA256: ""
+  MICROTUN_BOOT_RELEASE_ESP32C6_SBV2_KEY_ID: microtun-boot-release-esp32c6-sbv2-rsa3072-v1
+  MICROTUN_BOOT_RELEASE_ESP32C6_SBV2_KEY_SHA256: ""
   MICROTUN_BOOT_DEV_RP2350_ROM_KEY_ID: microtun-boot-dev-rp2350-rom-k1-v1
   MICROTUN_BOOT_DEV_RP2350_ROM_KEY_SHA256: "a4f13b59a35ec04304157df2ef69d7ecce9432a9abd0b0a16ca9f2a039edda10"
   MICROTUN_BOOT_RELEASE_RP2350_ROM_KEY_ID: microtun-boot-release-rp2350-rom-k1-v1
@@ -192,6 +198,7 @@ jobs:
           - esp32c5-devkitc-1-n4
           - esp32c5-devkitc-1-n8
           - esp32c5-devkitc-1-n16
+          - esp32c6-supermini
         profile: [dev, release]
         # `dir` is the board directory under boards/ and its crates' name
         # prefix. The C5 variants share one: the same microtun boot binary,
@@ -208,6 +215,9 @@ jobs:
             target: riscv32imac-unknown-none-elf
           - board: esp32c5-devkitc-1-n16
             dir: esp32c5-devkitc-1
+            target: riscv32imac-unknown-none-elf
+          - board: esp32c6-supermini
+            dir: esp32c6-supermini
             target: riscv32imac-unknown-none-elf
     steps:
       - name: Checkout
@@ -398,7 +408,7 @@ jobs:
           set -euo pipefail
           dir="$RUNNER_TEMP/rom-pubkeys"
           mkdir -p "$dir"
-          for spec in esp32c3:ESP32C3_SBV2 esp32c5:ESP32C5_SBV2 rp2350:RP2350_ROM; do
+          for spec in esp32c3:ESP32C3_SBV2 esp32c5:ESP32C5_SBV2 esp32c6:ESP32C6_SBV2 rp2350:RP2350_ROM; do
             board="${spec%%:*}"
             name="${spec#*:}"
             for profile in dev release; do
@@ -429,8 +439,8 @@ jobs:
       # signs it and the prebuilt IDF second stage with the same RSA-3072 key,
       # checks both carry the same ROM key, writes the partition table, and
       # merges all three into one image that starts at the chip's second-stage
-      # offset (0x0 on the C3, 0x2000 on the C5) and ends with the factory
-      # partition.
+      # offset (0x0 on the C3 and C6, 0x2000 on the C5) and ends with the
+      # factory partition.
       - name: Sign ESP32 boot chains
         env:
           NO_FLASH: "1"
@@ -443,7 +453,8 @@ jobs:
             esp32c3-supermini:esp32c3:ESP32C3:esp32c3-supermini \
             esp32c5-devkitc-1-n4:esp32c5:ESP32C5:esp32c5-devkitc-1 \
             esp32c5-devkitc-1-n8:esp32c5:ESP32C5:esp32c5-devkitc-1 \
-            esp32c5-devkitc-1-n16:esp32c5:ESP32C5:esp32c5-devkitc-1; do
+            esp32c5-devkitc-1-n16:esp32c5:ESP32C5:esp32c5-devkitc-1 \
+            esp32c6-supermini:esp32c6:ESP32C6:esp32c6-supermini; do
             IFS=: read -r board chip name board_dir <<< "$spec"
             # The merged image's size follows from the board's layout.
             layout() { microtun-boot-tools-esp --board "$board" layout --constant "$1"; }
@@ -527,8 +538,8 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t assets < <(find dist -type f -name '*.bin' -print | sort)
-          # 2 profiles x (merged ESP32-C3 and ESP32-C5 N4/N8/N16 boot chains
-          # + RP2350).
+          # 2 profiles x (merged ESP32-C3, ESP32-C5 N4/N8/N16 and ESP32-C6
+          # boot chains + RP2350).
           expected=(
             esp32c3-supermini-dev-boot-chain.sbv2.bin
             esp32c3-supermini-release-boot-chain.sbv2.bin
@@ -538,6 +549,8 @@ jobs:
             esp32c5-devkitc-1-n8-release-boot-chain.sbv2.bin
             esp32c5-devkitc-1-n16-dev-boot-chain.sbv2.bin
             esp32c5-devkitc-1-n16-release-boot-chain.sbv2.bin
+            esp32c6-supermini-dev-boot-chain.sbv2.bin
+            esp32c6-supermini-release-boot-chain.sbv2.bin
             rp2350-pico2-dev-microtun-boot.signed.bin
             rp2350-pico2-release-microtun-boot.signed.bin
           )
