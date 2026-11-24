@@ -1,5 +1,9 @@
 # microtun boot
 
+<p align="center">
+  <img src="assets/microtun-boot-mascot.png" alt="microtun boot mascot: a microchip superhero with a security shield climbing toward an upgrade arrow" width="280">
+</p>
+
 A secure boot bootloader written in Rust, compatible with
 [MCUboot](https://github.com/mcu-tools/mcuboot)'s on-flash formats, so
 `imgtool sign` output works unchanged. On every boot it authenticates the
