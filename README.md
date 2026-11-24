@@ -13,7 +13,8 @@ boots an image that fails verification.
 - **Policy:** downgrade prevention, minimum version, hardware security counter
   (anti-rollback; temporarily disabled on ESP32-C5), imgtool `--vid`/`--cid`.
 - **Boards:** [ESP32-C3 SuperMini](boards/esp32c3-supermini/README.md),
-  [ESP32-C5-DevKitC-1](boards/esp32c5-devkitc-1/README.md),
+  [ESP32-C5-DevKitC-1](boards/esp32c5-devkitc-1/README.md) (4, 8 or 16 MiB
+  flash),
   [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
   [QEMU](boards/qemu/README.md) (tests only).
 

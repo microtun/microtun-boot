@@ -24,12 +24,28 @@ is never booted.
 > [hardware-in-the-loop suite](#hardware-in-the-loop-tests) supports this
 > board; run it on an expendable board before relying on the port.
 
+## Board variants
+
+The DevKitC-1 comes with modules of different flash sizes. Each size is its
+own board, named after the `N…` (flash) part of the module's ordering code:
+
+| Board (`--board`) | Flash | Module, e.g. | Partition table | Slots |
+|---|---|---|---|---|
+| `esp32c5-devkitc-1-n4` | 4 MiB | `…-N4` | `layout/partitions-n4.csv` | 2 × 1764 KiB |
+| `esp32c5-devkitc-1-n8` | 8 MiB | `…-N8R8` | `layout/partitions-n8.csv` | 2 × 3812 KiB |
+| `esp32c5-devkitc-1-n16` | 16 MiB | `…-N16R8` | `layout/partitions-n16.csv` | 2 × 7908 KiB |
+
+All three share this directory and build the **same** microtun boot and
+firmware binaries. The board decides the partition table, the flash size in
+the ESP image headers and the ESP-IDF second stage, and which release boot
+chain to use. A smaller board works on a larger module (the rest of the flash
+is unused); the tool refuses the reverse when it can read the chip's flash
+size (it cannot in Secure Download Mode).
+
 ## Requirements and limitations
 
 - ESP32-C5 **rev v1.0 (ECO2) or later**, the minimum ESP-IDF v5.5 supports.
-  The generic `esp32c5-devkitc-1` target requires **at least 4 MiB** of flash
-  and uses only the first 4 MiB. Larger-flash variants (e.g. N8R4 and N8R8)
-  use the same layout; their upper flash is outside this target's layout.
+  Choose the [board variant](#board-variants) for the module's flash size.
 - Connect the board through the port labelled **ESP32-C5 USB** (the chip's
   native USB-Serial-JTAG), not the USB-to-UART port: the tools auto-detect and
   monitor over USB-Serial-JTAG, and microtun boot logs there. The one
@@ -57,7 +73,7 @@ is never booted.
 
 ## Flash layout
 
-Defined in `layout/partitions.csv`:
+Defined in `layout/partitions-<n4|n8|n16>.csv`. Every variant starts the same:
 
 | Region | Offset | Size |
 |---|---|---|
@@ -65,23 +81,32 @@ Defined in `layout/partitions.csv`:
 | ESP-IDF second stage | `0x2000` | ≤ 56 KiB |
 | Partition table | `0x10000` | 4 KiB |
 | `microtun-boot` | `0x20000` | 256 KiB |
-| `image-0` (primary) | `0x6F000` | 1764 KiB |
-| `image-1` (secondary) | `0x22F000` | 1764 KiB |
-| `image-scratch` | `0x3E8000` | 64 KiB |
-| `storage` (yours) | `0x3F8000` | 32 KiB |
+
+The slots grow with the flash; scratch and storage stay at its end:
+
+| Region | N4 | N8 | N16 |
+|---|---|---|---|
+| `image-0` (primary) | `0x6F000`, 1764 KiB | `0x6F000`, 3812 KiB | `0x6F000`, 7908 KiB |
+| `image-1` (secondary) | `0x22F000`, 1764 KiB | `0x42F000`, 3812 KiB | `0x82F000`, 7908 KiB |
+| `image-scratch` (64 KiB) | `0x3E8000` | `0x7E8000` | `0xFE8000` |
+| `storage` (yours, 32 KiB) | `0x3F8000` | `0x7F8000` | `0xFF8000` |
 
 microtun boot finds slots by label at runtime, so a changed partition table needs
 no third-stage rebuild if the flash geometry is unchanged. Slots must start at
 `…F000` so the image after the 4 KiB MCUboot header lands on a 64 KiB MMU page.
-Check a layout with `microtun-boot-tools-esp --board esp32c5-devkitc-1 layout`.
+Check a layout with `microtun-boot-tools-esp --board esp32c5-devkitc-1-n8 layout`.
 
-**Migrating from the former 8 MiB layout:** back up application-owned storage
-and any images you need before flashing. Rebuild the ESP-IDF second stage
-with the 4 MiB configuration (do not reuse an old `ESP_IDF_BOOTLOADER_BIN`),
-flash the new signed boot chain/partition table and install freshly signed
+**Migrating from `esp32c5-devkitc-1`:** the former board is now
+`esp32c5-devkitc-1-n4`, with the same layout and second-stage configuration.
+A board flashed with it keeps working; use `--board esp32c5-devkitc-1-n4` from
+now on. To use the full flash of an 8 or 16 MiB module, re-provision it as
+`-n8` or `-n16`: back up application-owned storage and any images you need,
+rebuild the ESP-IDF second stage for the new flash size (do not reuse an old
+`ESP_IDF_BOOTLOADER_BIN`; the tool refuses one built for another size), flash
+the new signed boot chain and partition table, and install freshly signed
 application images for the new slot size. Do not attempt an in-place OTA
-migration from the old layout; slot sizes, the secondary slot and storage
-positions have changed. Keep the existing enrolled Secure Boot V2 key.
+migration; slot sizes, the secondary slot and storage positions change. Keep
+the existing enrolled Secure Boot V2 key.
 
 ## Setup
 
@@ -102,10 +127,18 @@ microtun-signer local init --key-id microtun-boot-local-esp32c5-sbv2-rsa3072 --a
 provisioning a board: without the RSA key you cannot sign a new boot chain
 for it.
 
-Every `microtun-boot-tools-esp` command needs `--board esp32c5-devkitc-1` (or
-`MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1`); the tool assumes no board. The
-`cargo run` runners in this directory and in the
-[blinky example](../../examples/esp32c5-devkitc-1-blinky/README.md) pass it for you.
+Every `microtun-boot-tools-esp` command needs the [board variant](#board-variants),
+as `--board esp32c5-devkitc-1-n8` (for example) or `MICROTUN_BOOT_ESP_BOARD`;
+the tool assumes no board. The `cargo run` runners in this directory and in
+the [blinky example](../../examples/esp32c5-devkitc-1-blinky/README.md) take it
+from `MICROTUN_BOOT_ESP_BOARD`, so set it once:
+
+```sh
+export MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1-n8   # match the module's flash
+```
+
+Use the same board for the boot chain and for every application you flash:
+the slot sizes, and with them the position of the MCUboot trailer, differ.
 
 ## Build and sign without flashing
 
@@ -127,13 +160,15 @@ To flash an already signed boot chain, such as a release artifact, without
 any signing key:
 
 ```sh
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-devkitc-1 \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-devkitc-1-n8 \
   flash-bootloader --signed-bin \
-  esp32c5-devkitc-1-release-boot-chain.sbv2.bin
+  esp32c5-devkitc-1-n8-release-boot-chain.sbv2.bin
 ```
 
-The tool verifies the signatures and partition table first and writes the
-image at `0x2000`. With `NO_FLASH=1` it only verifies.
+Each variant has its own release boot chain. The tool verifies the
+signatures, the partition table and the flash size in both stages' headers
+against the board first, and writes the image at `0x2000`. With `NO_FLASH=1`
+it only verifies.
 
 ## Writing an application
 
@@ -158,7 +193,7 @@ must never ship. An application must:
 
 | Variable | Purpose |
 |---|---|
-| `MICROTUN_BOOT_ESP_BOARD` | Board for `microtun-boot-tools-esp` when `--board` is absent |
+| `MICROTUN_BOOT_ESP_BOARD` | [Board variant](#board-variants) (`esp32c5-devkitc-1-n4`, `-n8` or `-n16`) for `microtun-boot-tools-esp` and the `cargo run` runners when `--board` is absent; no default |
 | `ESPPORT` | Serial port of the **ESP32-C5 USB** connector; auto-detected if only one ESP USB-Serial-JTAG device is attached. In Secure Download Mode, set it to the **USB-to-UART** port instead (never auto-detected) |
 | `SLOT=image-1` | Write the secondary slot instead of the primary (see below) |
 | `MICROTUN_BOOT_OTP_BURN=YES` | Required to flash the boot chain |
@@ -179,7 +214,7 @@ must never ship. An application must:
 | Variable | Purpose |
 |---|---|
 | `ESP_BOOTLOADER_PROFILE` | `dev` (default; JTAG and spare key slots stay open) or `release` (disables JTAG, revokes spare slots) |
-| `ESP_IDF_BOOTLOADER_BIN` | Prebuilt unsigned second stage; skips Docker |
+| `ESP_IDF_BOOTLOADER_BIN` | Prebuilt unsigned second stage, built for the board's flash size; skips Docker |
 
 `SLOT=image-1` only places an image in the secondary slot; it does not request
 an upgrade. The trailer that triggers one is written by the running
@@ -238,17 +273,21 @@ available and tested.
 
 Connect the **ESP32-C5 USB** port (not the USB-to-UART port), then:
 
+Then enable the feature named after the [board variant](#board-variants):
+
 ```sh
 export MICROTUN_BOOT_ESP_PORT=/dev/serial/by-id/usb-Espressif_USB_JTAG_serial_debug_unit_YOUR_DEVICE_ID
-cargo test -p microtun-boot-hil --features esp32c5-devkitc-1,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32c5-devkitc-1-n8,smoke -- --test-threads=1
 ```
 
-Each test composes a complete 4 MiB fixture and writes `0x2000..0x400000`
-(4,186,112 bytes) through the ROM loader. The key-manager sectors below
-`0x2000` and any physical flash beyond 4 MiB are left alone. Raise
-`MICROTUN_BOOT_ESP_FLASH_TIMEOUT_SECS` (default 600) if a write times out.
-The second stage is built with Docker as for a normal build, or taken from
-`ESP_IDF_BOOTLOADER_BIN` (built for the 4 MiB layout).
+Each test composes a complete fixture of the board's flash size and writes
+from `0x2000` to its end through the ROM loader: 4,186,112 bytes on N4,
+8,380,416 on N8 and 16,769,024 on N16. The key-manager sectors below `0x2000`
+and any physical flash beyond the board's size are left alone. Raise
+`MICROTUN_BOOT_ESP_FLASH_TIMEOUT_SECS` (default 600) if a write times out,
+which is likelier on the larger variants. The second stage is built with
+Docker as for a normal build, or taken from `ESP_IDF_BOOTLOADER_BIN` (built
+for the board's flash size).
 
 Use the `dev` profile for the HIL setup. C5 smoke fixtures use counter `0`
 without reading eFuses over JTAG. The `security-counter` suite is temporarily

@@ -28,6 +28,7 @@ pub use crate::{Result, dut, hooks};
 
 pub static BOARD: Board = Board {
     name: "rp2350-pico2",
+    dir: "rp2350-pico2",
     chip: "RP2350",
     env_prefix: "MICROTUN_BOOT_RP235X",
     target: "thumbv8m.main-none-eabihf",

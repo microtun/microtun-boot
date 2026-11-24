@@ -46,7 +46,8 @@ pub struct ChipInfo {
     pub rom_data_start: u32,
     pub boot_info_address: u32,
     pub boot_info_size: u32,
-    /// The chip crate's named constants, for `layout --constant`.
+    /// The chip crate's named constants, for `layout --constant`. The
+    /// board adds its own `FLASH_SIZE`.
     pub constants: fn() -> BTreeMap<String, u32>,
 }
 
@@ -103,7 +104,6 @@ pub static ESP32C3: ChipInfo = {
                 LOADER_PLAN_ADDRESS,
                 LOADER_STACK_BOTTOM,
                 LOADER_STACK_TOP,
-                FLASH_SIZE,
             ]
         },
     }
@@ -156,7 +156,6 @@ pub static ESP32C5: ChipInfo = {
                 LOADER_PLAN_ADDRESS,
                 LOADER_STACK_BOTTOM,
                 LOADER_STACK_TOP,
-                FLASH_SIZE,
             ]
         },
     }
@@ -165,8 +164,13 @@ pub static ESP32C5: ChipInfo = {
 /// One supported board: its chip, configured flash capacity and boot-chain key.
 #[derive(Debug)]
 pub struct Board {
-    /// Directory name under `boards/`.
+    /// The name `--board` and `MICROTUN_BOOT_ESP_BOARD` take.
     pub name: &'static str,
+    /// Directory under `boards/` with the board's crates, Cargo config and
+    /// ESP-IDF project. Boards that differ only in flash size share one.
+    pub dir_name: &'static str,
+    /// The board's ESP-IDF partition table, relative to [`Board::dir`].
+    pub partitions: &'static str,
     pub chip: &'static ChipInfo,
     /// Flash capacity used by this board target (may be less than physical flash).
     pub flash_size: u32,
@@ -176,6 +180,8 @@ pub struct Board {
 
 pub static ESP32C3_SUPERMINI: Board = Board {
     name: "esp32c3-supermini",
+    dir_name: "esp32c3-supermini",
+    partitions: "layout/partitions.csv",
     chip: &ESP32C3,
     flash_size: microtun_boot_layout_esp32c3_supermini::FLASH_SIZE,
     dev_key: DevKey {
@@ -184,21 +190,58 @@ pub static ESP32C3_SUPERMINI: Board = Board {
     },
 };
 
-pub static ESP32C5_DEVKITC_1: Board = Board {
-    name: "esp32c5-devkitc-1",
-    chip: &ESP32C5,
-    flash_size: microtun_boot_layout_esp32c5_devkitc_1::FLASH_SIZE,
-    dev_key: DevKey {
-        key_id: "microtun-boot-local-esp32c5-sbv2-rsa3072",
-        env: "ESP_SBV2_KEY_ID",
-    },
-};
+/// An ESP32-C5-DevKitC-1 with `flash_size` bytes of flash. The variants
+/// share one board directory and differ only in their partition table.
+const fn esp32c5_devkitc_1(name: &'static str, partitions: &'static str, flash_size: u32) -> Board {
+    Board {
+        name,
+        dir_name: "esp32c5-devkitc-1",
+        partitions,
+        chip: &ESP32C5,
+        flash_size,
+        dev_key: DevKey {
+            key_id: "microtun-boot-local-esp32c5-sbv2-rsa3072",
+            env: "ESP_SBV2_KEY_ID",
+        },
+    }
+}
+
+/// ESP32-C5-DevKitC-1 with 4 MiB of flash (`…-N4` module).
+pub static ESP32C5_DEVKITC_1_N4: Board = esp32c5_devkitc_1(
+    "esp32c5-devkitc-1-n4",
+    "layout/partitions-n4.csv",
+    microtun_boot_layout_esp32c5_devkitc_1::n4::FLASH_SIZE,
+);
+
+/// ESP32-C5-DevKitC-1 with 8 MiB of flash (`…-N8R8` module).
+pub static ESP32C5_DEVKITC_1_N8: Board = esp32c5_devkitc_1(
+    "esp32c5-devkitc-1-n8",
+    "layout/partitions-n8.csv",
+    microtun_boot_layout_esp32c5_devkitc_1::n8::FLASH_SIZE,
+);
+
+/// ESP32-C5-DevKitC-1 with 16 MiB of flash (`…-N16R8` module).
+pub static ESP32C5_DEVKITC_1_N16: Board = esp32c5_devkitc_1(
+    "esp32c5-devkitc-1-n16",
+    "layout/partitions-n16.csv",
+    microtun_boot_layout_esp32c5_devkitc_1::n16::FLASH_SIZE,
+);
 
 /// Every supported board.
-pub static BOARDS: [&Board; 2] = [&ESP32C3_SUPERMINI, &ESP32C5_DEVKITC_1];
+pub static BOARDS: [&Board; 4] = [
+    &ESP32C3_SUPERMINI,
+    &ESP32C5_DEVKITC_1_N4,
+    &ESP32C5_DEVKITC_1_N8,
+    &ESP32C5_DEVKITC_1_N16,
+];
 
 /// The names of every supported board.
-pub const BOARD_NAMES: [&str; 2] = ["esp32c3-supermini", "esp32c5-devkitc-1"];
+pub const BOARD_NAMES: [&str; 4] = [
+    "esp32c3-supermini",
+    "esp32c5-devkitc-1-n4",
+    "esp32c5-devkitc-1-n8",
+    "esp32c5-devkitc-1-n16",
+];
 
 impl Board {
     /// The board called `name`.
@@ -211,9 +254,13 @@ impl Board {
             ),
         }
     }
-    /// `boards/<name>` in this repository.
+    /// `boards/<dir_name>` in this repository.
     pub fn dir(&self) -> PathBuf {
-        repo_root().join("boards").join(self.name)
+        repo_root().join("boards").join(self.dir_name)
+    }
+    /// The board's partition table file.
+    pub fn partitions_path(&self) -> PathBuf {
+        self.dir().join(self.partitions)
     }
     /// The `espflash` flash size setting for this board.
     pub fn espflash_size(&self) -> Result<FlashSize> {
@@ -223,6 +270,16 @@ impl Board {
             0x0100_0000 => FlashSize::_16Mb,
             size => bail!("unsupported flash size {size:#x}"),
         })
+    }
+    /// The flash size in ESP-IDF's `CONFIG_ESPTOOLPY_FLASHSIZE_<size>` form (`4MB`).
+    pub fn idf_flash_size(&self) -> Result<String> {
+        self.espflash_size()?;
+        Ok(format!("{}MB", self.flash_size >> 20))
+    }
+    /// The flash-size field (upper nibble of byte 3) of this board's ESP
+    /// image headers.
+    pub fn header_flash_size(&self) -> Result<u8> {
+        Ok(self.espflash_size()?.encode_flash_size()?)
     }
 }
 
@@ -235,10 +292,29 @@ mod tests {
         for (board, name) in BOARDS.iter().zip(BOARD_NAMES) {
             assert_eq!(board.name, name);
             assert!(std::ptr::eq(Board::named(name).unwrap(), *board));
-            assert!(board.dir().join("layout/partitions.csv").is_file());
+            assert!(board.partitions_path().is_file(), "{}", board.name);
             board.espflash_size().unwrap();
         }
         assert!(Board::named("esp32c4").is_err());
+        // The C5 variants are named by flash size; the old shared name is gone.
+        assert!(Board::named("esp32c5-devkitc-1").is_err());
+    }
+
+    #[test]
+    fn c5_variants_share_a_directory_and_differ_in_flash() {
+        let variants = [
+            (&ESP32C5_DEVKITC_1_N4, 0x0040_0000, "4MB", 2),
+            (&ESP32C5_DEVKITC_1_N8, 0x0080_0000, "8MB", 3),
+            (&ESP32C5_DEVKITC_1_N16, 0x0100_0000, "16MB", 4),
+        ];
+        for (board, size, idf, header) in variants {
+            assert_eq!(board.dir_name, "esp32c5-devkitc-1");
+            assert!(std::ptr::eq(board.chip, &ESP32C5));
+            assert_eq!(board.flash_size, size, "{}", board.name);
+            assert_eq!(board.idf_flash_size().unwrap(), idf);
+            assert_eq!(board.header_flash_size().unwrap(), header);
+        }
+        assert_eq!(ESP32C3_SUPERMINI.idf_flash_size().unwrap(), "4MB");
     }
 
     #[test]
@@ -250,7 +326,8 @@ mod tests {
             assert_eq!(chip.espflash.default_xtal_frequency(), chip.xtal);
             let constants = (chip.constants)();
             assert_eq!(constants["PROTECTED_START"], chip.protected_start);
-            assert_eq!(constants["FLASH_SIZE"], board.flash_size);
+            // FLASH_SIZE belongs to the board, not the chip.
+            assert!(!constants.contains_key("FLASH_SIZE"));
             // The second stage ends before the partition table can start.
             assert!(chip.rom_bootloader_offset + chip.max_stage2_signed <= 0x10000);
             assert!(chip.protected_start < chip.rom_data_start);

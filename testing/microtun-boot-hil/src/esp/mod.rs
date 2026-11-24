@@ -15,7 +15,7 @@
 //! Later resets reuse the same CDC connection.
 //!
 //! One [`EspTarget`] describes each board (`crate::esp32c3::TARGET`,
-//! `crate::esp32c5::TARGET`). Chip facts (ROM second-stage offset, flash
+//! `crate::esp32c5::TARGET_N4`, `TARGET_N8`, `TARGET_N16`). Chip facts (ROM second-stage offset, flash
 //! size, espflash chip and crystal, memory windows, Secure Boot key) come
 //! from `microtun-boot-tools-esp`'s board table, the same values the board's
 //! own flashing tool uses; the target adds only what the harness needs
@@ -130,6 +130,7 @@ impl EspTarget {
             .unwrap_or_else(|e| panic!("{} partition table: {e}", chip.display));
         Board {
             name: self.tools.name,
+            dir: self.tools.dir_name,
             chip: chip.display,
             env_prefix: ENV_PREFIX,
             target: self.rust_target,
@@ -166,13 +167,17 @@ pub fn targets() -> impl Iterator<Item = &'static EspTarget> {
     [
         #[cfg(feature = "esp32c3-supermini")]
         &crate::esp32c3::TARGET,
-        #[cfg(feature = "esp32c5-devkitc-1")]
-        &crate::esp32c5::TARGET,
+        #[cfg(feature = "esp32c5-devkitc-1-n4")]
+        &crate::esp32c5::TARGET_N4,
+        #[cfg(feature = "esp32c5-devkitc-1-n8")]
+        &crate::esp32c5::TARGET_N8,
+        #[cfg(feature = "esp32c5-devkitc-1-n16")]
+        &crate::esp32c5::TARGET_N16,
     ]
     .into_iter()
 }
 
-/// The ESP target named `name` (`esp32c5-devkitc-1`), if compiled in.
+/// The ESP target named `name` (`esp32c5-devkitc-1-n8`), if compiled in.
 pub fn target_named(name: &str) -> Option<&'static EspTarget> {
     targets().find(|target| target.tools.name == name)
 }
@@ -270,6 +275,7 @@ mod tests {
             let board = target.board();
             assert!(std::ptr::eq(target_of(board).unwrap(), target));
             assert_eq!(board.name, target.tools.name);
+            assert_eq!(board.dir, target.tools.dir_name);
             assert_eq!(board.flash_size, target.tools.flash_size as usize);
             assert_eq!(board.signing.cid, target.chip().name);
             assert_eq!(board.env("PORT"), "MICROTUN_BOOT_ESP_PORT");
@@ -278,6 +284,8 @@ mod tests {
             assert!(efuse.bits > 0 && efuse.shift + efuse.bits <= 32);
         }
         assert!(target_named("esp32c4").is_none());
+        // The C5 boards are named by flash size; there is no generic C5 target.
+        assert!(target_named("esp32c5-devkitc-1").is_none());
         assert!(target_of(&crate::TEST_BOARD).is_none());
     }
 

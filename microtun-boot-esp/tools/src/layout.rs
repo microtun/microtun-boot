@@ -142,6 +142,7 @@ impl EspLayout {
     pub fn constants(&self) -> Result<BTreeMap<String, u32>> {
         // Chip (chips/<chip>) and board (FLASH_SIZE) constants.
         let mut values = (self.board.chip.constants)();
+        values.insert("FLASH_SIZE".into(), self.board.flash_size);
         values.insert("PARTITION_TABLE_OFFSET".into(), self.offset);
         values.insert(
             "BOOTLOADER_SIZE".into(),
@@ -163,9 +164,9 @@ impl EspLayout {
     }
 }
 
-/// The board's `boards/<board>/layout/partitions.csv`.
+/// The board's own partition table ([`Board::partitions_path`]).
 pub fn default_layout(board: &'static Board) -> Result<EspLayout> {
-    EspLayout::load(board, &board.dir().join("layout/partitions.csv"))
+    EspLayout::load(board, &board.partitions_path())
 }
 
 #[cfg(test)]
@@ -189,15 +190,48 @@ mod tests {
         }
     }
 
+    /// The C5 variants share everything below `image-0`; slots, scratch and
+    /// storage scale with flash, as documented in each partition table.
     #[test]
-    fn c5_layout_matches_documentation() {
-        let layout = default_layout(&crate::board::ESP32C5_DEVKITC_1).unwrap();
-        assert_eq!(layout.board.flash_size, 0x0040_0000);
-        assert_eq!(layout.offset, 0x10000);
-        assert_eq!(layout.region("image-0").unwrap(), (0x6f000, 0x1b9000));
-        assert_eq!(layout.region("image-1").unwrap(), (0x22f000, 0x1b9000));
-        assert_eq!(layout.region("image-scratch").unwrap(), (0x3e8000, 0x10000));
-        assert_eq!(layout.region("storage").unwrap(), (0x3f8000, 0x8000));
-        assert_eq!(layout.constants().unwrap()["BOOTLOADER_SIZE"], 0xe000);
+    fn c5_layouts_match_documentation() {
+        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8, ESP32C5_DEVKITC_1_N16};
+        for (board, flash, secondary, slot) in [
+            (&ESP32C5_DEVKITC_1_N4, 0x0040_0000, 0x22f000, 0x1b9000),
+            (&ESP32C5_DEVKITC_1_N8, 0x0080_0000, 0x42f000, 0x3b9000),
+            (&ESP32C5_DEVKITC_1_N16, 0x0100_0000, 0x82f000, 0x7b9000),
+        ] {
+            let layout = default_layout(board).unwrap();
+            assert_eq!(layout.board.flash_size, flash);
+            assert_eq!(layout.offset, 0x10000);
+            assert_eq!(layout.region("nvs").unwrap(), (0x11000, 0x5000));
+            assert_eq!(layout.region("phy_init").unwrap(), (0x16000, 0x1000));
+            assert_eq!(layout.region("microtun-boot").unwrap(), (0x20000, 0x40000));
+            assert_eq!(layout.region("image-0").unwrap(), (0x6f000, slot));
+            assert_eq!(layout.region("image-1").unwrap(), (secondary, slot));
+            // A 28 KiB alignment gap separates the slots.
+            assert_eq!(secondary - (0x6f000 + slot), 0x7000, "{}", board.name);
+            let scratch = flash - 0x18000;
+            assert_eq!(layout.region("image-scratch").unwrap(), (scratch, 0x10000));
+            assert_eq!(secondary + slot, scratch, "{}", board.name);
+            // storage is the final 32 KiB.
+            assert_eq!(layout.region("storage").unwrap(), (flash - 0x8000, 0x8000));
+            let constants = layout.constants().unwrap();
+            assert_eq!(constants["BOOTLOADER_SIZE"], 0xe000);
+            assert_eq!(constants["FLASH_SIZE"], flash);
+        }
+    }
+
+    /// A larger variant's table does not fit a smaller board.
+    #[test]
+    fn c5_tables_are_rejected_on_smaller_variants() {
+        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8, ESP32C5_DEVKITC_1_N16};
+        let n8 = ESP32C5_DEVKITC_1_N8.partitions_path();
+        let n16 = ESP32C5_DEVKITC_1_N16.partitions_path();
+        assert!(EspLayout::load(&ESP32C5_DEVKITC_1_N4, &n8).is_err());
+        assert!(EspLayout::load(&ESP32C5_DEVKITC_1_N4, &n16).is_err());
+        assert!(EspLayout::load(&ESP32C5_DEVKITC_1_N8, &n16).is_err());
+        // A smaller table is valid on a larger board; it just leaves flash unused.
+        let n4 = ESP32C5_DEVKITC_1_N4.partitions_path();
+        assert!(EspLayout::load(&ESP32C5_DEVKITC_1_N16, &n4).is_ok());
     }
 }

@@ -46,6 +46,13 @@ pub fn build_idf(board: &Board, settings: &Settings) -> Result<Vec<u8>> {
         number(offset)? == crate::layout::table_offset(board)?,
         "IDF table offset disagrees with Cargo config"
     );
+    // Boards that share an IDF project differ in flash size, so the board
+    // table supplies it (ESP_FLASH_SIZE below), never the sdkconfig.
+    ensure!(
+        !sets_flash_size(&config),
+        "the IDF sdkconfig must not set the flash size; {} supplies it",
+        board.name
+    );
     let raw = if let Some(path) = &settings.idf_bootloader {
         fs::read(path)?
     } else {
@@ -60,6 +67,10 @@ pub fn build_idf(board: &Board, settings: &Settings) -> Result<Vec<u8>> {
                 .arg(board_dir.join("bootloader/Dockerfile.boot"))
                 .arg("--build-arg")
                 .arg(format!("ESP_BOOTLOADER_PROFILE={}", settings.profile))
+                .arg("--build-arg")
+                .arg(format!("ESP_FLASH_SIZE={}", board.idf_flash_size()?))
+                .arg("--build-arg")
+                .arg(format!("ESP_PARTITION_TABLE={}", board.partitions))
                 .arg("--output")
                 .arg(format!("type=local,dest={}", dir.path().display()))
                 .arg(&board_dir),
@@ -74,7 +85,32 @@ pub fn build_idf(board: &Board, settings: &Settings) -> Result<Vec<u8>> {
         "expected unsigned IDF ESP image <= {} KiB",
         max_raw / 1024
     );
+    // Catches an ESP_IDF_BOOTLOADER_BIN built for another flash size.
+    check_flash_size(board, &raw, "IDF second stage")?;
     Ok(raw)
+}
+
+/// Whether an sdkconfig selects a flash size itself.
+fn sets_flash_size(config: &str) -> bool {
+    config
+        .lines()
+        .any(|line| line.trim_start().starts_with("CONFIG_ESPTOOLPY_FLASHSIZE"))
+}
+
+/// An ESP image header records the flash size the image was built for, and
+/// the second stage configures the flash chip from it. Every boot stage must
+/// match the board, or slots beyond that size are out of reach.
+pub fn check_flash_size(board: &Board, image: &[u8], what: &str) -> Result<()> {
+    let expected = board.header_flash_size()?;
+    let found = image.get(3).map(|byte| byte >> 4);
+    ensure!(
+        image.first() == Some(&0xe9) && found == Some(expected),
+        "{what} was built for a different flash size than {} ({} MiB): \
+         header flash size {found:?}, expected {expected}",
+        board.name,
+        board.flash_size >> 20
+    );
+    Ok(())
 }
 /// The SBv2 signature block occupies one sector after the padded image.
 const SIGNATURE_SECTOR: u32 = 0x1000;
@@ -105,6 +141,7 @@ pub fn boot_chain(
         !raw.is_empty() && raw.len().is_multiple_of(board.chip.mmu_page_size as usize),
         "microtun boot must be secure-padded to 64 KiB"
     );
+    check_flash_size(board, &raw, "microtun boot")?;
     let idf = build_idf(board, settings)?;
     // The same RSA key signs the ROM's IDF stage and the microtun boot stage.
     let microtun_boot = crate::sbv2::sign(&raw, signer)?;
@@ -189,6 +226,8 @@ pub fn verify_signed_merged(data: &[u8], layout: &EspLayout) -> Result<()> {
         stage2.first() == Some(&0xe9) && microtun_boot.first() == Some(&0xe9),
         "signed ESP boot stages must contain ESP images"
     );
+    check_flash_size(layout.board, stage2, "signed IDF second stage")?;
+    check_flash_size(layout.board, microtun_boot, "signed microtun boot")?;
     ensure!(
         (microtun_boot.len() - 4096).is_multiple_of(chip.mmu_page_size as usize),
         "signed microtun boot image must be padded to 64 KiB"
@@ -276,7 +315,17 @@ impl BootChain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::{BOARDS, ESP32C3_SUPERMINI, ESP32C5_DEVKITC_1};
+    use crate::board::{
+        BOARDS, ESP32C3_SUPERMINI, ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8,
+        ESP32C5_DEVKITC_1_N16,
+    };
+
+    /// An ESP image of `len` bytes whose header names `board`'s flash size.
+    fn esp_image(board: &Board, len: usize) -> Vec<u8> {
+        let mut image = vec![0xe9; len];
+        image[3] = board.header_flash_size().unwrap() << 4;
+        image
+    }
 
     #[test]
     fn existing_signed_ci_chain_is_verified_without_resigning_or_flashing() {
@@ -289,8 +338,8 @@ mod tests {
         let layout = crate::layout::default_layout(board).unwrap();
         let base = board.chip.rom_bootloader_offset as usize;
         let chain = BootChain {
-            stage2: crate::sbv2::test_key::signed(&[0xe9; 0x2000]),
-            microtun_boot: crate::sbv2::test_key::signed(&vec![0xe9; 0x10000]),
+            stage2: crate::sbv2::test_key::signed(&esp_image(board, 0x2000)),
+            microtun_boot: crate::sbv2::test_key::signed(&esp_image(board, 0x10000)),
             layout,
         };
         let mut merged = chain.merged().unwrap();
@@ -313,8 +362,91 @@ mod tests {
     #[test]
     fn merged_image_spans_stage2_table_and_factory_partition() {
         merged_image_layout(&ESP32C3_SUPERMINI, 0x60000);
-        // The C5 ROM loads the second stage from 0x2000.
-        merged_image_layout(&ESP32C5_DEVKITC_1, 0x5e000);
+        // The C5 ROM loads the second stage from 0x2000. Every variant has
+        // the same boot chain span; only the slots beyond it grow.
+        for board in [
+            &ESP32C5_DEVKITC_1_N4,
+            &ESP32C5_DEVKITC_1_N8,
+            &ESP32C5_DEVKITC_1_N16,
+        ] {
+            merged_image_layout(board, 0x5e000);
+        }
+    }
+
+    /// A boot chain signed for one C5 variant is refused on another: the
+    /// partition table differs, and so do the stage headers' flash size.
+    #[test]
+    fn signed_chain_is_bound_to_its_variant() {
+        let chain_for = |board: &'static Board| {
+            BootChain {
+                stage2: crate::sbv2::test_key::signed(&esp_image(board, 0x2000)),
+                microtun_boot: crate::sbv2::test_key::signed(&esp_image(board, 0x10000)),
+                layout: crate::layout::default_layout(board).unwrap(),
+            }
+            .merged()
+            .unwrap()
+        };
+        let n4 = crate::layout::default_layout(&ESP32C5_DEVKITC_1_N4).unwrap();
+        let n16 = crate::layout::default_layout(&ESP32C5_DEVKITC_1_N16).unwrap();
+        verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N4), &n4).unwrap();
+        assert!(verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N16), &n4).is_err());
+        assert!(verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N4), &n16).is_err());
+
+        // Same table, stage built for the wrong flash size (e.g. a reused
+        // 4 MiB ESP_IDF_BOOTLOADER_BIN).
+        let stale = BootChain {
+            stage2: crate::sbv2::test_key::signed(&esp_image(&ESP32C5_DEVKITC_1_N4, 0x2000)),
+            microtun_boot: crate::sbv2::test_key::signed(&esp_image(
+                &ESP32C5_DEVKITC_1_N16,
+                0x10000,
+            )),
+            layout: crate::layout::default_layout(&ESP32C5_DEVKITC_1_N16).unwrap(),
+        };
+        let error = verify_signed_merged(&stale.merged().unwrap(), &n16).unwrap_err();
+        assert!(
+            error.to_string().contains("different flash size"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn stage_headers_must_name_the_board_flash_size() {
+        for board in BOARDS {
+            check_flash_size(board, &esp_image(board, 32), "stage").unwrap();
+            let mut wrong = esp_image(board, 32);
+            wrong[3] ^= 0x10;
+            assert!(check_flash_size(board, &wrong, "stage").is_err());
+            assert!(check_flash_size(board, &wrong[..3], "stage").is_err());
+            let mut not_esp = esp_image(board, 32);
+            not_esp[0] = 0;
+            assert!(check_flash_size(board, &not_esp, "stage").is_err());
+        }
+        // The flash frequency in the low nibble is not checked.
+        let mut image = esp_image(&ESP32C5_DEVKITC_1_N8, 32);
+        image[3] |= 0x0f;
+        check_flash_size(&ESP32C5_DEVKITC_1_N8, &image, "stage").unwrap();
+    }
+
+    #[test]
+    fn flash_size_settings_are_found_but_comments_are_not() {
+        assert!(sets_flash_size("A=1\nCONFIG_ESPTOOLPY_FLASHSIZE_8MB=y\n"));
+        assert!(!sets_flash_size(
+            "# CONFIG_ESPTOOLPY_FLASHSIZE_* comes from the board\n"
+        ));
+    }
+
+    /// Both IDF projects leave the flash size to the board table.
+    #[test]
+    fn idf_sdkconfigs_do_not_set_the_flash_size() {
+        for board in BOARDS {
+            for profile in ["dev", "release"] {
+                let path = board
+                    .dir()
+                    .join(format!("bootloader/sdkconfig.defaults.{profile}"));
+                let config = fs::read_to_string(&path).unwrap();
+                assert!(!sets_flash_size(&config), "{}", path.display());
+            }
+        }
     }
 
     fn merged_image_layout(board: &'static Board, expected_len: usize) {

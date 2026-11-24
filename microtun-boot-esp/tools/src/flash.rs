@@ -250,7 +250,10 @@ fn connect_rom(
             Ok(flasher)
         })();
         match result {
-            Ok(flasher) => return Ok((flasher, path)),
+            Ok(mut flasher) => {
+                check_physical_flash(board, detect_flash(&mut flasher))?;
+                return Ok((flasher, path));
+            }
             Err(err) => {
                 eprintln!("  ROM connection attempt {attempt}/5: {err:#}");
                 last_error = Some(err);
@@ -259,6 +262,39 @@ fn connect_rom(
         }
     }
     Err(last_error.unwrap_or_else(|| anyhow!("ROM connection failed")))
+}
+
+/// The flash chip's capacity from its JEDEC ID, if the ROM lets us read it.
+/// Secure Download Mode forbids the register reads this needs.
+fn detect_flash(flasher: &mut Flasher) -> Option<u32> {
+    if flasher.secure_download_mode() {
+        eprintln!("  Secure Download Mode: cannot check the flash chip's size");
+        return None;
+    }
+    match flasher.flash_detect() {
+        Ok(size) => size.map(|size| size.size()),
+        Err(err) => {
+            eprintln!("  cannot read the flash chip's size: {err}");
+            None
+        }
+    }
+}
+
+/// Refuse a board whose layout needs more flash than the chip has: the
+/// ROM would wrap writes past the end over the boot chain. A larger chip is
+/// fine; the board simply leaves the rest unused.
+fn check_physical_flash(board: &Board, detected: Option<u32>) -> Result<()> {
+    if let Some(detected) = detected {
+        ensure!(
+            detected >= board.flash_size,
+            "--board {} needs {} MiB of flash, but the chip reports {} MiB; \
+             choose the board that matches the module's flash size",
+            board.name,
+            board.flash_size >> 20,
+            detected >> 20
+        );
+    }
+    Ok(())
 }
 
 /// Set the board's flash geometry even when Secure Download Mode prevents
@@ -518,16 +554,53 @@ mod tests {
     }
 
     #[test]
-    fn generic_c5_board_limits_writes_to_four_mib() {
-        let size = crate::board::ESP32C5_DEVKITC_1.flash_size;
-        assert_eq!(size, 0x0040_0000);
-        assert!(super::check_range(size, 0x22f000, 0x1b9000).is_ok());
-        assert!(super::check_range(size, 0x3f8000, 0x8000).is_ok());
-        assert!(super::check_range(size, 0x42f000, 0x3b9000).is_err());
-        assert!(super::check_write(size, size - SECTOR_SIZE, &[0]).is_ok());
-        assert!(super::check_write(size, size, &[0]).is_err());
-        // The shared helper still supports a larger configured board.
-        assert!(super::check_range(0x0080_0000, 0x42f000, 0x3b9000).is_ok());
+    fn c5_variants_limit_writes_to_their_flash() {
+        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8, ESP32C5_DEVKITC_1_N16};
+        // Each variant's secondary slot and storage, and the next variant's
+        // secondary slot.
+        for (board, secondary, storage, larger) in [
+            (
+                &ESP32C5_DEVKITC_1_N4,
+                (0x22f000, 0x1b9000),
+                0x3f8000,
+                Some((0x42f000, 0x3b9000)),
+            ),
+            (
+                &ESP32C5_DEVKITC_1_N8,
+                (0x42f000, 0x3b9000),
+                0x7f8000,
+                Some((0x82f000, 0x7b9000)),
+            ),
+            (&ESP32C5_DEVKITC_1_N16, (0x82f000, 0x7b9000), 0xff8000, None),
+        ] {
+            let size = board.flash_size;
+            assert!(super::check_range(size, secondary.0, secondary.1).is_ok());
+            assert!(super::check_range(size, storage, 0x8000).is_ok());
+            if let Some((offset, len)) = larger {
+                assert!(super::check_range(size, offset, len).is_err());
+            }
+            assert!(super::check_write(size, size - SECTOR_SIZE, &[0]).is_ok());
+            assert!(super::check_write(size, size, &[0]).is_err());
+        }
+    }
+
+    #[test]
+    fn board_must_not_need_more_flash_than_the_chip_reports() {
+        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N16};
+        const MIB: u32 = 1 << 20;
+        let error = check_physical_flash(&ESP32C5_DEVKITC_1_N16, Some(4 * MIB)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("esp32c5-devkitc-1-n16 needs 16 MiB"),
+            "{error}"
+        );
+        assert!(error.to_string().contains("reports 4 MiB"), "{error}");
+        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N16, Some(16 * MIB)).is_ok());
+        // A smaller layout on a larger chip leaves the rest unused.
+        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N4, Some(16 * MIB)).is_ok());
+        // Unknown (Secure Download Mode, failed JEDEC read): rely on the board.
+        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N16, None).is_ok());
     }
 
     #[test]
@@ -561,7 +634,7 @@ mod tests {
 
     #[test]
     fn hil_rom_writer_validates_regions_before_opening_usb() {
-        let c5 = &crate::board::ESP32C5_DEVKITC_1;
+        let c5 = &crate::board::ESP32C5_DEVKITC_1_N4;
         let error = write_rom_region_no_reset(c5, "missing-port", 0, &[0x55]).unwrap_err();
         assert!(error.to_string().contains("reserved bytes"), "{error}");
         let c3 = &crate::board::ESP32C3_SUPERMINI;
@@ -570,7 +643,7 @@ mod tests {
             error.to_string().contains("empty ESP flash image"),
             "{error}"
         );
-        for board in [c3, c5] {
+        for board in crate::board::BOARDS {
             let error = write_rom_region_no_reset(
                 board,
                 "missing-port",
@@ -584,10 +657,7 @@ mod tests {
 
     #[test]
     fn watchdog_registers_cover_every_board_and_agree_with_espflash() {
-        for board in [
-            &crate::board::ESP32C3_SUPERMINI,
-            &crate::board::ESP32C5_DEVKITC_1,
-        ] {
+        for board in crate::board::BOARDS {
             let chip = board.chip.espflash;
             let w = watchdogs(chip).expect("every supported board has watchdogs to disable");
             assert_eq!(Some(w.rwdt_config0), chip.wdt_config0(), "{chip}");

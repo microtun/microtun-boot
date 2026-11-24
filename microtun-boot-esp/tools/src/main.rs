@@ -106,7 +106,13 @@ fn main() {
     cli::exit_on_error(
         env!("CARGO_BIN_NAME"),
         cli.board
-            .context("name the board with --board or MICROTUN_BOOT_ESP_BOARD")
+            .with_context(|| {
+                format!(
+                    "name the board with --board or {}: one of {}",
+                    board::BOARD_ENV,
+                    board::BOARD_NAMES.join(", ")
+                )
+            })
             .and_then(|name| Board::named(&name))
             .and_then(|board| run(board, cli.command)),
     );
@@ -271,18 +277,20 @@ mod tests {
             board(&[
                 "esp-tools",
                 "--board",
-                "esp32c5-devkitc-1",
+                "esp32c5-devkitc-1-n16",
                 "flash-app",
                 "fw.elf"
             ])
             .unwrap(),
-            "esp32c5-devkitc-1"
+            "esp32c5-devkitc-1-n16"
         );
         assert_eq!(
             board(&["esp-tools", "layout", "--board", "esp32c3-supermini"]).unwrap(),
             "esp32c3-supermini"
         );
         assert!(board(&["esp-tools", "--board", "esp32c6", "layout"]).is_err());
+        // The C5 board is chosen by flash size; there is no generic name.
+        assert!(board(&["esp-tools", "--board", "esp32c5-devkitc-1", "layout"]).is_err());
     }
 
     #[test]

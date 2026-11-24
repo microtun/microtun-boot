@@ -146,14 +146,14 @@ mod tests {
         }
     }
 
-    /// Slots, scratch and storage lie within the board's configured flash.
-    /// The generic ESP32-C5-DevKitC-1 uses the first 4 MiB.
+    /// Slots, scratch and storage lie within the board's configured flash,
+    /// and storage ends exactly at its end.
     #[test]
     fn programmed_table_fills_the_board_flash() {
         for target in targets() {
             let table = read(target).unwrap();
             let end = table.storage.offset + table.storage.size;
-            assert!(end <= target.tools.flash_size, "{}", target.tools.name);
+            assert_eq!(end, target.tools.flash_size, "{}", target.tools.name);
             assert!(table.offset > target.chip().rom_bootloader_offset);
         }
     }
@@ -180,8 +180,9 @@ mod tests {
         }
     }
 
-    /// A slot pair that extends beyond 4 MiB is rejected on the generic
-    /// C3/C5 targets, while the check follows each board's configured limit.
+    /// A slot pair that extends beyond 4 MiB is rejected on the 4 MiB boards
+    /// (C3, C5 N4) and accepted on the larger C5 variants: the check follows
+    /// each board's configured limit.
     #[test]
     fn partitions_are_bounded_by_the_board_flash_size() {
         let large = binary(

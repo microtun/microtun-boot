@@ -14,11 +14,25 @@ pub use microtun_boot_hil::scenario::{BOOT, QUIET, behave, expect_running, field
 
 use microtun_boot_hil::esp::{EspTarget, artifacts, flash};
 
-/// The board under test. (`mod.rs` rejects enabling both ESP boards.)
+/// The board under test. (`mod.rs` rejects enabling more than one ESP board.)
 #[cfg(feature = "esp32c3-supermini")]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c3::TARGET;
-#[cfg(all(feature = "esp32c5-devkitc-1", not(feature = "esp32c3-supermini")))]
-pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET;
+#[cfg(all(feature = "esp32c5-devkitc-1-n4", not(feature = "esp32c3-supermini")))]
+pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N4;
+#[cfg(all(
+    feature = "esp32c5-devkitc-1-n8",
+    not(any(feature = "esp32c3-supermini", feature = "esp32c5-devkitc-1-n4"))
+))]
+pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N8;
+#[cfg(all(
+    feature = "esp32c5-devkitc-1-n16",
+    not(any(
+        feature = "esp32c3-supermini",
+        feature = "esp32c5-devkitc-1-n4",
+        feature = "esp32c5-devkitc-1-n8"
+    ))
+))]
+pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N16;
 
 /// Number of SECURE_VERSION epochs (eFuse bits) on the board's chip.
 #[cfg(feature = "esp32c3-supermini")]

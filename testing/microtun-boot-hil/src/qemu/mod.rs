@@ -12,6 +12,7 @@ pub mod sign;
 
 pub static BOARD: Board = Board {
     name: "qemu",
+    dir: "qemu",
     chip: "QEMU Cortex-M3",
     env_prefix: "MICROTUN_BOOT_QEMU",
     target: "thumbv7m-none-eabi",

@@ -3,7 +3,9 @@
 //!
 //! ```text
 //! microtun-boot-flash esp32c3-supermini PORT FLASH.bin  flash 4 MiB via the ESP ROM loader
-//! microtun-boot-flash esp32c5-devkitc-1 PORT FLASH.bin  flash 4 MiB via the ESP ROM loader
+//! microtun-boot-flash esp32c5-devkitc-1-n4 PORT FLASH.bin  flash 4 MiB via the ESP ROM loader
+//! microtun-boot-flash esp32c5-devkitc-1-n8 PORT FLASH.bin  flash 8 MiB via the ESP ROM loader
+//! microtun-boot-flash esp32c5-devkitc-1-n16 PORT FLASH.bin flash 16 MiB via the ESP ROM loader
 //! microtun-boot-flash rp2350-pico2 FLASH.bin       restore 4 MiB over SWD, then reset
 //! microtun-boot-flash rp2350-pico2 --reset         reset only
 //! ```
@@ -15,7 +17,7 @@ use std::{path::PathBuf, time::Duration};
 #[cfg(feature = "rp2350-pico2")]
 use crate::{Board, flash_transport};
 
-const USAGE: &str = "usage: microtun-boot-flash <esp32c3-supermini|esp32c5-devkitc-1> PORT FLASH.bin | microtun-boot-flash rp2350-pico2 <FLASH.bin|--reset>";
+const USAGE: &str = "usage: microtun-boot-flash <esp32c3-supermini|esp32c5-devkitc-1-n4|esp32c5-devkitc-1-n8|esp32c5-devkitc-1-n16> PORT FLASH.bin | microtun-boot-flash rp2350-pico2 <FLASH.bin|--reset>";
 
 /// Run the worker for the board named on the command line.
 /// Successful completion returns normally; errors produce a failure exit code.

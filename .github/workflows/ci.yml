@@ -51,14 +51,19 @@ jobs:
       - name: Clippy (ESP HIL harness and scenarios)
         run: |
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c3-supermini,esp32c5-devkitc-1 --locked -- -D warnings
+            --features esp32c3-supermini,esp32c5-devkitc-1-n4,esp32c5-devkitc-1-n8,esp32c5-devkitc-1-n16 \
+            --locked -- -D warnings
           cargo clippy -p microtun-boot-hil --all-targets \
             --features esp32c3-supermini,smoke,security-counter --locked -- -D warnings
           # TODO(esp32c5): restore security-counter after the eFuse fix.
-          cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c5-devkitc-1,smoke --locked -- -D warnings
+          for board in esp32c5-devkitc-1-n4 esp32c5-devkitc-1-n8 esp32c5-devkitc-1-n16; do
+            cargo clippy -p microtun-boot-hil --all-targets \
+              --features "$board,smoke" --locked -- -D warnings
+          done
       - name: ESP HIL harness unit tests (no hardware)
-        run: cargo test -p microtun-boot-hil --lib --bins --features esp32c3-supermini,esp32c5-devkitc-1 --locked
+        run: |
+          cargo test -p microtun-boot-hil --lib --bins --locked \
+            --features esp32c3-supermini,esp32c5-devkitc-1-n4,esp32c5-devkitc-1-n8,esp32c5-devkitc-1-n16
 
   security:
     name: Rust dependency security

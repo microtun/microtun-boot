@@ -1,5 +1,5 @@
 //! Build the bootloader variants and the firmware with cargo. Each variant
-//! uses its own target directory under `target/hil-<board>/` so switching
+//! uses its own target directory under `target/hil-<board dir>/` so switching
 //! features does not rebuild others. The board modules cache the results per
 //! test process and convert them to their flash format.
 //!
@@ -33,14 +33,15 @@ pub fn repo_root() -> PathBuf {
         .unwrap()
 }
 
-/// `boards/<board>/` at the repository root.
+/// `boards/<board dir>/` at the repository root.
 pub fn board_dir(board: &Board) -> PathBuf {
-    repo_root().join("boards").join(board.name)
+    repo_root().join("boards").join(board.dir)
 }
 
-/// `target/hil-<board>/` at the repository root.
+/// `target/hil-<board dir>/` at the repository root. Boards that share a
+/// directory build the same binaries, so they share these builds too.
 pub fn target_root(board: &Board) -> PathBuf {
-    repo_root().join(format!("target/hil-{}", board.name))
+    repo_root().join(format!("target/hil-{}", board.dir))
 }
 
 /// Bootloader build configurations under test.
@@ -100,7 +101,7 @@ pub fn build_bootloader(board: &Board, variant: Variant) -> Vec<u8> {
         &board_dir(board).join(binary),
         &target_root(board).join(variant.name()),
         &variant.features(board.name),
-        &format!("{}-microtun-boot", board.name),
+        &format!("{}-microtun-boot", board.dir),
     );
     std::fs::read(path).unwrap()
 }
@@ -112,7 +113,7 @@ pub fn build_firmware(board: &Board) -> Vec<u8> {
         &board_dir(board).join("firmware"),
         &target_root(board).join("firmware"),
         "",
-        &format!("{}-firmware", board.name),
+        &format!("{}-firmware", board.dir),
     );
     std::fs::read(path).unwrap()
 }
@@ -121,7 +122,7 @@ fn profile() -> String {
     std::env::var("MICROTUN_BOOT_TEST_PROFILE").unwrap_or_else(|_| "release".into())
 }
 
-/// Write the development public key under `target/hil-<board>/` for the
+/// Write the development public key under `target/hil-<board dir>/` for the
 /// bootloader builds' `MICROTUN_BOOT_PUBKEYS`. Rewritten only when it changes, so
 /// the build scripts' `rerun-if-changed` does not force rebuilds.
 fn trusted_key_file(board: &Board) -> PathBuf {
@@ -219,7 +220,13 @@ mod tests {
             if variant != Variant::SwapScratch {
                 assert!(features.split(',').any(|feature| feature == variant.name()));
             }
-            for other in ["qemu", "esp32c3-supermini", "esp32c5-devkitc-1"] {
+            for other in [
+                "qemu",
+                "esp32c3-supermini",
+                "esp32c5-devkitc-1-n4",
+                "esp32c5-devkitc-1-n8",
+                "esp32c5-devkitc-1-n16",
+            ] {
                 assert!(!variant.features(other).contains("production"));
             }
         }

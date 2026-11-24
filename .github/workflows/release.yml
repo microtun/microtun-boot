@@ -187,12 +187,27 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        board: [esp32c3-supermini, esp32c5-devkitc-1]
+        board:
+          - esp32c3-supermini
+          - esp32c5-devkitc-1-n4
+          - esp32c5-devkitc-1-n8
+          - esp32c5-devkitc-1-n16
         profile: [dev, release]
+        # `dir` is the board directory under boards/ and its crates' name
+        # prefix. The C5 variants share one: the same microtun boot binary,
+        # but each has its own partition table and IDF flash size.
         include:
           - board: esp32c3-supermini
+            dir: esp32c3-supermini
             target: riscv32imc-unknown-none-elf
-          - board: esp32c5-devkitc-1
+          - board: esp32c5-devkitc-1-n4
+            dir: esp32c5-devkitc-1
+            target: riscv32imac-unknown-none-elf
+          - board: esp32c5-devkitc-1-n8
+            dir: esp32c5-devkitc-1
+            target: riscv32imac-unknown-none-elf
+          - board: esp32c5-devkitc-1-n16
+            dir: esp32c5-devkitc-1
             target: riscv32imac-unknown-none-elf
     steps:
       - name: Checkout
@@ -226,10 +241,10 @@ jobs:
       # Run inside the board workspace so its .cargo/config.toml (target,
       # rustflags, partition table offset, esp-hal options) applies.
       - name: Build microtun boot
-        working-directory: boards/${{ matrix.board }}
+        working-directory: boards/${{ matrix.dir }}
         env:
           MICROTUN_BOOT_PUBKEYS: ${{ runner.temp }}/pubkeys/${{ matrix.profile }}.pub.pem
-        run: cargo build --release --locked -p ${{ matrix.board }}-microtun-boot
+        run: cargo build --release --locked -p ${{ matrix.dir }}-microtun-boot
 
       - name: Build ESP-IDF second stage (unsigned)
         env:
@@ -241,7 +256,7 @@ jobs:
           microtun-boot-tools-esp --board ${{ matrix.board }} build-bootloader unsigned/bootloader.idf.bin
 
       - name: Stage unsigned images
-        run: cp target/${{ matrix.target }}/release/${{ matrix.board }}-microtun-boot unsigned/
+        run: cp target/${{ matrix.target }}/release/${{ matrix.dir }}-microtun-boot unsigned/
 
       - name: Upload unsigned images
         uses: actions/upload-artifact@v4
@@ -423,8 +438,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          for spec in esp32c3-supermini:esp32c3:ESP32C3 esp32c5-devkitc-1:esp32c5:ESP32C5; do
-            IFS=: read -r board chip name <<< "$spec"
+          # board:chip:key name:board directory (the microtun boot ELF's prefix).
+          for spec in \
+            esp32c3-supermini:esp32c3:ESP32C3:esp32c3-supermini \
+            esp32c5-devkitc-1-n4:esp32c5:ESP32C5:esp32c5-devkitc-1 \
+            esp32c5-devkitc-1-n8:esp32c5:ESP32C5:esp32c5-devkitc-1 \
+            esp32c5-devkitc-1-n16:esp32c5:ESP32C5:esp32c5-devkitc-1; do
+            IFS=: read -r board chip name board_dir <<< "$spec"
             # The merged image's size follows from the board's layout.
             layout() { microtun-boot-tools-esp --board "$board" layout --constant "$1"; }
             expected=$(( $(layout MICROTUN_BOOT_OFFSET) + $(layout MICROTUN_BOOT_SIZE) - $(layout ROM_BOOTLOADER_OFFSET) ))
@@ -436,7 +456,7 @@ jobs:
               ESP_IDF_BOOTLOADER_BIN="$dir/bootloader.idf.bin" \
               MICROTUN_SIGNER_KEY_ID="${!key_var}" \
               MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY="$RUNNER_TEMP/rom-pubkeys/$chip-$profile.pub.pem" \
-                microtun-boot-tools-esp --board "$board" flash-bootloader "$dir/$board-microtun-boot"
+                microtun-boot-tools-esp --board "$board" flash-bootloader "$dir/$board_dir-microtun-boot"
               merged="$dir/boot-chain.sbv2.bin"
               size="$(stat -c %s "$merged")"
               if (( size != expected )); then
@@ -507,12 +527,17 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t assets < <(find dist -type f -name '*.bin' -print | sort)
-          # 2 profiles x (merged ESP32-C3 and ESP32-C5 boot chains + RP2350).
+          # 2 profiles x (merged ESP32-C3 and ESP32-C5 N4/N8/N16 boot chains
+          # + RP2350).
           expected=(
             esp32c3-supermini-dev-boot-chain.sbv2.bin
             esp32c3-supermini-release-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-dev-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-release-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n4-dev-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n4-release-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n8-dev-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n8-release-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n16-dev-boot-chain.sbv2.bin
+            esp32c5-devkitc-1-n16-release-boot-chain.sbv2.bin
             rp2350-pico2-dev-microtun-boot.signed.bin
             rp2350-pico2-release-microtun-boot.signed.bin
           )

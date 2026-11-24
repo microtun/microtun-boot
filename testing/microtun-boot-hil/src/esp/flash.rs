@@ -181,33 +181,42 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "esp32c5-devkitc-1")]
+    /// Each C5 variant's fixture is exactly its own flash size, and an image
+    /// composed for another variant is refused before any USB traffic.
+    #[cfg(feature = "esp32c5")]
     #[test]
-    fn c5_fixture_uses_four_mib_and_rejects_old_eight_mib_image() {
-        let target = &crate::esp32c5::TARGET;
-        let chain = super::super::artifacts::Bootloader {
-            image: vec![0xa5; 64],
-            idf_image: vec![0x5a; 64],
-        };
-        let flash = compose(target, &chain).unwrap();
-        let bytes = flash.bytes();
-        assert_eq!(bytes.len(), 0x400000);
-        let (address, written) = written_region(target, &bytes);
-        assert_eq!(address, 0x2000);
-        assert_eq!(written.len(), 0x3fe000);
+    fn c5_fixture_matches_its_variant_and_rejects_other_sizes() {
+        const MIB: u64 = 1 << 20;
+        for target in targets().filter(|target| target.chip().name == "esp32c5") {
+            let size = u64::from(target.tools.flash_size);
+            assert!([4 * MIB, 8 * MIB, 16 * MIB].contains(&size));
+            let chain = super::super::artifacts::Bootloader {
+                image: vec![0xa5; 64],
+                idf_image: vec![0x5a; 64],
+            };
+            let flash = compose(target, &chain).unwrap();
+            let bytes = flash.bytes();
+            assert_eq!(bytes.len() as u64, size);
+            let (address, written) = written_region(target, &bytes);
+            assert_eq!(address, 0x2000);
+            assert_eq!(written.len() as u64, size - 0x2000);
 
-        let image = tempfile::NamedTempFile::new().unwrap();
-        image.as_file().set_len(0x400000).unwrap();
-        validate_image_size(target, image.path()).unwrap();
-        image.as_file().set_len(0x800000).unwrap();
-        for error in [
-            write_full_image(target, "unused", image.path()).unwrap_err(),
-            write_full_image_in_worker(target, "unused", image.path()).unwrap_err(),
-        ] {
-            assert!(
-                error.to_string().contains("expected complete 4 MiB"),
-                "{error}"
-            );
+            let image = tempfile::NamedTempFile::new().unwrap();
+            image.as_file().set_len(size).unwrap();
+            validate_image_size(target, image.path()).unwrap();
+            let expected = format!("expected complete {} MiB", size / MIB);
+            for other in [4 * MIB, 8 * MIB, 16 * MIB] {
+                if other == size {
+                    continue;
+                }
+                image.as_file().set_len(other).unwrap();
+                for error in [
+                    write_full_image(target, "unused", image.path()).unwrap_err(),
+                    write_full_image_in_worker(target, "unused", image.path()).unwrap_err(),
+                ] {
+                    assert!(error.to_string().contains(&expected), "{error}");
+                }
+            }
         }
     }
 

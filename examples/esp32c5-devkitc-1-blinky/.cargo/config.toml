@@ -7,12 +7,14 @@ rustflags = ["-C", "force-frame-pointers"]
 # result, erases the whole primary slot (image-0 @ 0x6F000, clearing any stale
 # MCUboot trailer), writes only the signed bytes and opens a monitor.
 # SLOT=image-1 targets the secondary slot instead, and `-- --no-monitor`
-# exits after the reset.
-runner = ["microtun-boot-tools-esp", "--board", "esp32c5-devkitc-1", "flash-app"]
+# exits after the reset. Set MICROTUN_BOOT_ESP_BOARD to the board variant the
+# boot chain was flashed for (esp32c5-devkitc-1-n4, -n8 or -n16): the slot
+# sizes, and with them the image's MCUboot trailer position, differ.
+runner = ["microtun-boot-tools-esp", "flash-app"]
 
 [env]
 # Must match the partition table offset baked into the microtun boot boot chain
-# (ESP32-C5-DevKitC-1 board: 0x10000).
+# (every ESP32-C5-DevKitC-1 variant: 0x10000).
 ESP_BOOTLOADER_ESP_IDF_CONFIG_PARTITION_TABLE_OFFSET = "65536"
 
 # --- MCUboot signing via microtun-signer, microtun boot *development* key ---------

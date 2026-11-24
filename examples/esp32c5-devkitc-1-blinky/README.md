@@ -37,19 +37,26 @@ end to end, local or remote, is in [SIGNING.md](../../SIGNING.md).
 > RSA key is burned into eFuse. From then on the board only boots boot chains
 > signed with that key. Use a board you are willing to dedicate.
 
-Download `esp32c5-devkitc-1-dev-boot-chain.sbv2.bin` from a
+First pick the [board variant](../../boards/esp32c5-devkitc-1/README.md#board-variants)
+for your module's flash size: `esp32c5-devkitc-1-n4`, `-n8` or `-n16`. The
+flash tool and `cargo run` take it from `MICROTUN_BOOT_ESP_BOARD`.
+
+Download the matching `<board>-dev-boot-chain.sbv2.bin` from a
 [microtun boot release](https://github.com/microtun/microtun-boot/releases), then
 connect the board through the **ESP32-C5 USB** connector (native
 USB-Serial-JTAG, not the UART one) and flash the boot chain followed by the
 application:
 
 ```sh
+export MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1-n8   # match the module's flash
 export ESPPORT=/dev/ttyACM0
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-devkitc-1 \
-  flash-bootloader --signed-bin \
-  esp32c5-devkitc-1-dev-boot-chain.sbv2.bin
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
+  "$MICROTUN_BOOT_ESP_BOARD-dev-boot-chain.sbv2.bin"
 cargo run --release      # sign, flash image-0 and open the monitor (Ctrl+C to exit)
 ```
+
+Keep `MICROTUN_BOOT_ESP_BOARD` set for later `cargo run`s: the image must be
+signed and flashed for the slot size of the boot chain on the board.
 
 microtun boot reboots until the application is installed; flashing the
 application last lets you watch the first boot.
@@ -98,13 +105,13 @@ export MICROTUN_SIGNER_GITHUB_LOGIN=false
 export MICROTUN_SIGNER_KEY_ID=microtun-boot-local-p256
 export MICROTUN_BOOT_KEY_ID=microtun-boot-local-p256
 export ESP_SBV2_KEY_ID=microtun-boot-local-esp32c5-sbv2-rsa3072
+export MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1-n8   # match the module's flash
 unset MICROTUN_BOOT_PUBKEYS MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY  # no pinned dev key, no key override
 
 (cd boards/esp32c5-devkitc-1/microtun-boot && NO_FLASH=1 cargo run --release)
 
 cd examples/esp32c5-devkitc-1-blinky
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-devkitc-1 \
-  flash-bootloader --signed-bin \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
   ../../target/riscv32imac-unknown-none-elf/release/boot-chain.sbv2.bin
 cargo run --release
 ```

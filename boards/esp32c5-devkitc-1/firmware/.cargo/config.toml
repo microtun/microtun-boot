@@ -2,5 +2,6 @@
 # are passed by build.rs.
 [target.riscv32imac-unknown-none-elf]
 # Signs the image and writes it to the primary slot. Set IMAGE_VERSION to
-# choose the image version.
-runner = ["microtun-boot-tools-esp", "--board", "esp32c5-devkitc-1", "flash-app"]
+# choose the image version. Set MICROTUN_BOOT_ESP_BOARD to the variant the
+# boot chain was flashed for (esp32c5-devkitc-1-n4, -n8 or -n16).
+runner = ["microtun-boot-tools-esp", "flash-app"]
