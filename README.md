@@ -17,11 +17,6 @@ boots an image that fails verification.
   [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
   [QEMU](boards/qemu/README.md) (tests only).
 
-ESP32-C5 currently has neither hardware rollback enforcement nor TRNG-backed
-fault-injection timing jitter (esp-hal 1.2.2 limitations). Signature checks
-and the power glitch detector remain active. See the
-[C5 board notes](boards/esp32c5-devkitc-1/README.md#security-counter).
-
 microtun boot is an experimental prototype and an independent project, not
 affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and
 [THREAT-MODEL.md](THREAT-MODEL.md) before using it in a product.
