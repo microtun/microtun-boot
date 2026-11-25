@@ -16,11 +16,8 @@ boots an image that fails verification.
   power-fail resume), overwrite-only, direct-XIP with or without revert.
 - **Policy:** downgrade prevention, minimum version, hardware security counter
   (anti-rollback; temporarily disabled on ESP32-C5), imgtool `--vid`/`--cid`.
-- **Boards:** [ESP32-C3 SuperMini](boards/esp32c3-supermini/README.md),
-  [ESP32-C5 Mini](boards/esp32c5-mini/README.md),
-  [ESP32-C6 SuperMini](boards/esp32c6-supermini/README.md),
-  [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
-  [QEMU](boards/qemu/README.md) (tests only).
+- **Boards:** ESP32-C3, ESP32-C5, ESP32-C6, RP2350 Pico 2 / Pico 2 W and
+  QEMU (tests only); see the [board index](boards/README.md).
 
 microtun boot is an experimental prototype and an independent project, not
 affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and
@@ -28,12 +25,10 @@ affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and
 
 ## Where to start
 
-- **Run an application on a released bootloader:** follow the
-  [ESP32-C3](examples/esp32c3-supermini-blinky/README.md),
-  [ESP32-C5](examples/esp32c5-mini-blinky/README.md),
-  [ESP32-C6](examples/esp32c6-supermini-blinky/README.md) or
-  [RP2350](examples/rp2350-pico2-blinky/README.md) blinky example.
-- **Build and flash your own bootloader:** follow the board README.
+- **Run an application on a released bootloader:** follow a
+  [blinky example](examples/README.md).
+- **Build and flash your own bootloader:** follow the
+  [board index](boards/README.md).
 - **Try it without hardware:** use the [QEMU board](boards/qemu/README.md).
 
 ## Requirements
@@ -73,8 +68,8 @@ targets.
 | [`microtun-boot-esp`](microtun-boot-esp/README.md), [`microtun-boot-rp`](microtun-boot-rp/README.md), [`microtun-boot-qemu`](microtun-boot-qemu/README.md) | Platform crates for bootloaders and applications, each with its host tool in its own `tools/` subdirectory |
 | [`microtun-boot-build`](microtun-boot-build/README.md) | `build.rs` helpers and shared signing code |
 | [`chips/`](chips/README.md) | Per-chip constants |
-| `boards/` | Bootloader, test firmware and flash layout per board |
-| `examples/` | Standalone application examples |
+| [`boards/`](boards/README.md) | Bootloader, test firmware and flash layout per board |
+| [`examples/`](examples/README.md) | Standalone application examples |
 | [`testing/`](testing/microtun-boot-hil/README.md) | Hardware-in-the-loop and QEMU tests |
 
 ## Tests

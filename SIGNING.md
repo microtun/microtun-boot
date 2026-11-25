@@ -92,6 +92,41 @@ openssl pkey -pubin -in firmware-p256.pub.pem -outform DER | sha256sum
 
 This SHA-256 of the DER SubjectPublicKeyInfo is the same fingerprint the release workflow pins (see [GitHub Actions release workflow](#github-actions-release-workflow)).
 
+## Signing example firmware in CI and releases
+
+The [blinky examples](examples/README.md) sign with the remote development
+key by default (selected in each example's `.cargo/config.toml`; shell
+variables override it). The notes below matter once an example becomes
+firmware of your own, built in CI or released:
+
+- **CI:** set `MICROTUN_SIGNER_GITHUB_LOGIN=false` (it must be `true` or
+  `false`, not `1`) and authenticate with `MICROTUN_SIGNER_TOKEN` or GitHub
+  Actions OIDC (`permissions: id-token: write`).
+- **Release keys:** boards provisioned with the `release` boot chain (ESP32)
+  or `release` bootloader (RP2350) verify `microtun-boot-release-p256-v1`
+  signatures instead, and a dev-provisioned board cannot switch. The ESP32
+  `release` profile disables JTAG, so the HIL tests, which read the security
+  counter over JTAG, cannot run on such a board. The RP2350 `release`
+  bootloader **permanently disables SWD** on first boot, so flash the
+  application before the bootloader and plan updates through your own
+  transport.
+
+### Pinning the development key
+
+By default each signature is only checked against whatever public key the
+service returns. To require the published key, fetch it once, check its
+fingerprint and point `MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY` at it:
+
+```sh
+microtun-signer public-key --url https://signer.microtun.dev \
+  --key-id microtun-boot-dev-p256-v1 > microtun-boot-dev-p256-v1.pub.pem
+openssl pkey -pubin -in microtun-boot-dev-p256-v1.pub.pem -outform DER | sha256sum
+export MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY="$PWD/microtun-boot-dev-p256-v1.pub.pem"
+```
+
+Compare the digest with the development fingerprints pinned in the
+[release workflow](#github-actions-release-workflow) before trusting it.
+
 ## Firmware: MCUboot images (ESP32-C3, ESP32-C5, ESP32-C6, RP2350, QEMU)
 
 Use a **P-256 / secp256r1** key in microtun-signer (local default: `microtun-boot-local-p256`). All existing microtun boot bootloaders verify P-256; no new embedded signature format is introduced. The host tool exports imgtool's SHA-256 digest, has microtun-signer sign it, verifies the returned fixed-width `r || s` signature with the service's public key, converts it to DER, assembles the final image with `imgtool --fix-sig`, and independently verifies the signed image.
@@ -150,11 +185,9 @@ On a version tag, `.github/workflows/release.yml` builds the bootloaders without
 To flash a previously signed CI release image without signing again, pass
 `--signed-bin` to the board's `flash-bootloader` command. See "Flash a signed
 release binary" in the
-[ESP32-C3](boards/esp32c3-supermini/README.md#flash-a-signed-release-binary),
-[ESP32-C5](boards/esp32c5-mini/README.md#flash-a-signed-release-binary),
-[ESP32-C6](boards/esp32c6-supermini/README.md#flash-a-signed-release-binary)
-and [RP2350](boards/rp2350-pico2/README.md#flash-a-signed-release-binary)
-READMEs. Verification uses the public key embedded in the file; check the
+[ESP32 board documentation](boards/README-ESP32.md#flash-a-signed-release-binary)
+and the [RP2350 README](boards/rp2350-pico2/README.md#flash-a-signed-release-binary).
+Verification uses the public key embedded in the file; check the
 release key identity separately against the actual board provisioning.
 
 The release pipeline publishes **bootloader images**, not signed example application firmware. The workflow defines all eight microtun-signer key IDs directly in its top-level `env` block (no GitHub repository variables are required):

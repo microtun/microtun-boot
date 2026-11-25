@@ -1,5 +1,10 @@
 # RP2350 Pico 2 / Pico 2 W
 
+The board is the official Raspberry Pi
+[Pico 2](https://www.raspberrypi.com/products/raspberry-pi-pico-2/) or
+Pico 2 W, built on Raspberry Pi's
+[RP2350](https://www.raspberrypi.com/products/rp2350/) microcontroller.
+
 On RP2350, microtun boot is the only stage after the mask ROM:
 
 1. The ROM loads microtun boot from flash offset `0x0` into SRAM and, once secure
