@@ -277,20 +277,20 @@ mod tests {
             board(&[
                 "esp-tools",
                 "--board",
-                "esp32c5-mini",
+                "esp32-c5-mini-1",
                 "flash-app",
                 "fw.elf"
             ])
             .unwrap(),
-            "esp32c5-mini"
+            "esp32-c5-mini-1"
         );
         assert_eq!(
-            board(&["esp-tools", "layout", "--board", "esp32c3-supermini"]).unwrap(),
-            "esp32c3-supermini"
+            board(&["esp-tools", "layout", "--board", "esp32-c3-mini-1"]).unwrap(),
+            "esp32-c3-mini-1"
         );
         assert_eq!(
-            board(&["esp-tools", "--board", "esp32c6-supermini", "layout"]).unwrap(),
-            "esp32c6-supermini"
+            board(&["esp-tools", "--board", "esp32-c6-mini-1", "layout"]).unwrap(),
+            "esp32-c6-mini-1"
         );
         // Boards are named, not chips.
         assert!(board(&["esp-tools", "--board", "esp32c6", "layout"]).is_err());
@@ -302,7 +302,7 @@ mod tests {
         let args = Cli::try_parse_from([
             "esp-tools",
             "--board",
-            "esp32c3-supermini",
+            "esp32-c3-mini-1",
             "flash-bootloader",
             "boot.elf",
         ])
@@ -319,14 +319,14 @@ mod tests {
         assert!(!parse(&[
             "esp-tools",
             "--board",
-            "esp32c3-supermini",
+            "esp32-c3-mini-1",
             "flash-app",
             "fw.elf"
         ]));
         assert!(parse(&[
             "esp-tools",
             "--board",
-            "esp32c3-supermini",
+            "esp32-c3-mini-1",
             "flash-app",
             "fw.elf",
             "--no-monitor"
@@ -336,7 +336,7 @@ mod tests {
             Cli::try_parse_from([
                 "esp-tools",
                 "--board",
-                "esp32c3-supermini",
+                "esp32-c3-mini-1",
                 "flash-bootloader",
                 "boot.elf",
                 "--no-monitor"
@@ -350,7 +350,7 @@ mod tests {
         let args = Cli::try_parse_from([
             "esp-tools",
             "flash-bootloader",
-            "esp32c3-supermini-release-boot-chain.sbv2.bin",
+            "esp32-c3-mini-1-release-boot-chain.sbv2.bin",
         ])
         .unwrap();
         assert!(matches!(
@@ -365,7 +365,7 @@ mod tests {
             let args = Cli::try_parse_from([
                 "esp-tools",
                 "--board",
-                "esp32c3-supermini",
+                "esp32-c3-mini-1",
                 "flash-bootloader",
                 "--signed-bin",
                 name,
@@ -384,12 +384,12 @@ mod tests {
     #[test]
     fn no_flash_saves_signed_image_without_flashing() {
         let dir = tempfile::tempdir().unwrap();
-        let elf = dir.path().join("esp32c3-supermini-firmware");
+        let elf = dir.path().join("esp32-c3-mini-1-firmware");
         fs::write(&elf, b"ELF").unwrap();
 
         // No serial port or connected ESP32 is needed for this path.
         flash_or_save_app(
-            &board::ESP32C3_SUPERMINI,
+            &board::ESP32_C3_MINI_1,
             &elf,
             b"signed",
             (0x6_f000, 0x1000),
@@ -408,13 +408,13 @@ mod tests {
     #[test]
     fn no_flash_does_not_overwrite_an_input() {
         let dir = tempfile::tempdir().unwrap();
-        let elf = dir.path().join("esp32c3-supermini-firmware");
+        let elf = dir.path().join("esp32-c3-mini-1-firmware");
         let input = elf.with_extension("signed.bin");
         fs::write(&input, b"input").unwrap();
 
         assert!(
             flash_or_save_app(
-                &board::ESP32C3_SUPERMINI,
+                &board::ESP32_C3_MINI_1,
                 &elf,
                 b"signed",
                 (0x6_f000, 0x1000),

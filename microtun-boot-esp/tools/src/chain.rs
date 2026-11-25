@@ -315,7 +315,7 @@ impl BootChain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::{BOARDS, ESP32C3_SUPERMINI, ESP32C5_MINI, ESP32C6_SUPERMINI};
+    use crate::board::{BOARDS, ESP32_C3_MINI_1, ESP32_C5_MINI_1, ESP32_C6_MINI_1};
 
     /// An ESP image of `len` bytes whose header names `board`'s flash size.
     fn esp_image(board: &Board, len: usize) -> Vec<u8> {
@@ -358,18 +358,18 @@ mod tests {
 
     #[test]
     fn merged_image_spans_stage2_table_and_factory_partition() {
-        merged_image_layout(&ESP32C3_SUPERMINI, 0x60000);
+        merged_image_layout(&ESP32_C3_MINI_1, 0x60000);
         // The C6 ROM, like the C3's, loads the second stage from 0x0.
-        merged_image_layout(&ESP32C6_SUPERMINI, 0x60000);
+        merged_image_layout(&ESP32_C6_MINI_1, 0x60000);
         // The C5 ROM loads the second stage from 0x2000.
-        merged_image_layout(&ESP32C5_MINI, 0x5e000);
+        merged_image_layout(&ESP32_C5_MINI_1, 0x5e000);
     }
 
     /// A boot chain whose stages were built for another flash size (e.g. a
     /// reused ESP_IDF_BOOTLOADER_BIN) is refused.
     #[test]
     fn signed_chain_is_bound_to_the_board_flash_size() {
-        let board = &ESP32C5_MINI;
+        let board = &ESP32_C5_MINI_1;
         let layout = crate::layout::default_layout(board).unwrap();
         let mut stale_stage2 = esp_image(board, 0x2000);
         stale_stage2[3] = 3 << 4; // 8 MiB
@@ -398,9 +398,9 @@ mod tests {
             assert!(check_flash_size(board, &not_esp, "stage").is_err());
         }
         // The flash frequency in the low nibble is not checked.
-        let mut image = esp_image(&ESP32C5_MINI, 32);
+        let mut image = esp_image(&ESP32_C5_MINI_1, 32);
         image[3] |= 0x0f;
-        check_flash_size(&ESP32C5_MINI, &image, "stage").unwrap();
+        check_flash_size(&ESP32_C5_MINI_1, &image, "stage").unwrap();
     }
 
     #[test]

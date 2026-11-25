@@ -192,21 +192,21 @@ jobs:
     strategy:
       matrix:
         board:
-          - esp32c3-supermini
-          - esp32c5-mini
-          - esp32c6-supermini
+          - esp32-c3-mini-1
+          - esp32-c5-mini-1
+          - esp32-c6-mini-1
         profile: [dev, release]
         # `dir` is the board directory under boards/ and its crates' name
         # prefix.
         include:
-          - board: esp32c3-supermini
-            dir: esp32c3-supermini
+          - board: esp32-c3-mini-1
+            dir: esp32-c3-mini-1
             target: riscv32imc-unknown-none-elf
-          - board: esp32c5-mini
-            dir: esp32c5-mini
+          - board: esp32-c5-mini-1
+            dir: esp32-c5-mini-1
             target: riscv32imac-unknown-none-elf
-          - board: esp32c6-supermini
-            dir: esp32c6-supermini
+          - board: esp32-c6-mini-1
+            dir: esp32-c6-mini-1
             target: riscv32imac-unknown-none-elf
     steps:
       - name: Checkout
@@ -439,9 +439,9 @@ jobs:
           mkdir -p dist
           # board:chip:key name:board directory (the microtun boot ELF's prefix).
           for spec in \
-            esp32c3-supermini:esp32c3:ESP32C3:esp32c3-supermini \
-            esp32c5-mini:esp32c5:ESP32C5:esp32c5-mini \
-            esp32c6-supermini:esp32c6:ESP32C6:esp32c6-supermini; do
+            esp32-c3-mini-1:esp32c3:ESP32C3:esp32-c3-mini-1 \
+            esp32-c5-mini-1:esp32c5:ESP32C5:esp32-c5-mini-1 \
+            esp32-c6-mini-1:esp32c6:ESP32C6:esp32-c6-mini-1; do
             IFS=: read -r board chip name board_dir <<< "$spec"
             # The merged image's size follows from the board's layout.
             layout() { microtun-boot-tools-esp --board "$board" layout --constant "$1"; }
@@ -528,12 +528,12 @@ jobs:
           # 2 profiles x (merged ESP32-C3, ESP32-C5 and ESP32-C6 boot chains
           # + RP2350).
           expected=(
-            esp32c3-supermini-dev-boot-chain.sbv2.bin
-            esp32c3-supermini-release-boot-chain.sbv2.bin
-            esp32c5-mini-dev-boot-chain.sbv2.bin
-            esp32c5-mini-release-boot-chain.sbv2.bin
-            esp32c6-supermini-dev-boot-chain.sbv2.bin
-            esp32c6-supermini-release-boot-chain.sbv2.bin
+            esp32-c3-mini-1-dev-boot-chain.sbv2.bin
+            esp32-c3-mini-1-release-boot-chain.sbv2.bin
+            esp32-c5-mini-1-dev-boot-chain.sbv2.bin
+            esp32-c5-mini-1-release-boot-chain.sbv2.bin
+            esp32-c6-mini-1-dev-boot-chain.sbv2.bin
+            esp32-c6-mini-1-release-boot-chain.sbv2.bin
             rp2350-pico2-dev-microtun-boot.signed.bin
             rp2350-pico2-release-microtun-boot.signed.bin
           )
@@ -561,27 +561,6 @@ jobs:
             gh release upload "$TAG_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
-            # Retire assets from releases created by previous workflows,
-            # including the separate ESP32-C3 stage/table images that the
-            # merged boot chain replaces; --clobber does not delete old names.
-            mapfile -t published < <(gh release view "$TAG_NAME" \
-              --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
-            for legacy in \
-              esp32c3-dev-partitions.bin esp32c3-release-partitions.bin \
-              esp32c3-partitions.bin \
-              esp32c3-dev-bootloader.idf.sbv2.bin esp32c3-release-bootloader.idf.sbv2.bin \
-              esp32c3-dev-microtun-boot.sbv2.bin esp32c3-release-microtun-boot.sbv2.bin \
-              rp2350-dev-microtun-boot.signed.bin rp2350-release-microtun-boot.signed.bin \
-              esp32c3-supermini-partitions.bin \
-              esp32c3-supermini-dev-bootloader.idf.sbv2.bin \
-              esp32c3-supermini-release-bootloader.idf.sbv2.bin \
-              esp32c3-supermini-dev-microtun-boot.sbv2.bin \
-              esp32c3-supermini-release-microtun-boot.sbv2.bin; do
-              if printf '%s\n' "${published[@]}" | grep -Fxq "$legacy"; then
-                gh release delete-asset "$TAG_NAME" "$legacy" \
-                  --repo "$GITHUB_REPOSITORY" --yes
-              fi
-            done
             # Keep the changelog but replace any old flashing section. This
             # also updates existing releases without duplicating instructions.
             body="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body')"

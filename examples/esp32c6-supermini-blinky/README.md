@@ -5,6 +5,10 @@ bootloader on an ESP32-C6 SuperMini, and a template for your own. It follows
 the [shared example workflow](../README.md); this README has this board's
 commands and details.
 
+The SuperMini uses microtun boot's
+[`esp32-c6-mini-1`](../../boards/esp32-c6-mini-1/README.md) board target; see
+[compatible development boards](../../boards/README-ESP32.md#compatible-development-boards).
+
 - Flashes the addressable RGB LED (GPIO8, driven through the RMT
   peripheral): fast **amber** while the image is an unconfirmed trial, a slow
   **green** heartbeat once it is permanent.
@@ -27,16 +31,16 @@ rustup target add riscv32imac-unknown-none-elf
 
 > **Irreversible** — see the [shared warning](../README.md#1-flash-the-dev-boot-chain-once-per-board).
 
-Download `esp32c6-supermini-dev-boot-chain.sbv2.bin` from a
+Download `esp32-c6-mini-1-dev-boot-chain.sbv2.bin` from a
 [microtun boot release](https://github.com/microtun/microtun-boot/releases),
 connect the board through its USB-C port, then flash the boot chain followed
 by the application:
 
 ```sh
 export ESPPORT=/dev/ttyACM0
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c6-supermini \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32-c6-mini-1 \
   flash-bootloader --signed-bin \
-  esp32c6-supermini-dev-boot-chain.sbv2.bin
+  esp32-c6-mini-1-dev-boot-chain.sbv2.bin
 cargo run --release      # sign, flash image-0 and open the monitor (Ctrl+C to exit)
 ```
 
@@ -58,10 +62,10 @@ Follow [use your own keys](../README.md#use-your-own-keys) with
 `ESP_SBV2_KEY_ID=microtun-boot-local-esp32c6-sbv2-rsa3072`:
 
 ```sh
-(cd boards/esp32c6-supermini/microtun-boot && NO_FLASH=1 cargo run --release)
+(cd boards/esp32-c6-mini-1/microtun-boot && NO_FLASH=1 cargo run --release)
 
 cd examples/esp32c6-supermini-blinky
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c6-supermini \
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32-c6-mini-1 \
   flash-bootloader --signed-bin \
   ../../target/riscv32imac-unknown-none-elf/release/boot-chain.sbv2.bin
 cargo run --release

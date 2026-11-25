@@ -13,7 +13,7 @@ With esp-hal 1.2.2, ESP32-C5 temporarily has no hardware security-counter
 support and no TRNG-backed jitter. The eFuse counter module and `BootRng`
 are C3 and C6 only. C5 retains protected VID/CID policy, signature re-authentication,
 load-plan verification and the power glitch detector. See the
-[C5 board notes](../boards/esp32c5-mini/README.md#security-counter)
+[C5 board notes](../boards/esp32-c5-mini-1/README.md#security-counter)
 for restoration TODOs.
 
 The ESP32-C6 has the C3's feature set (eFuse counter, TRNG jitter) except

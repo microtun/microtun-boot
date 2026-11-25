@@ -53,7 +53,7 @@ the right target. `cargo run --release` there builds, signs and flashes;
 `NO_FLASH=1` stops after signing:
 
 ```sh
-cd boards/esp32c3-supermini/firmware
+cd boards/esp32-c3-mini-1/firmware
 NO_FLASH=1 cargo run --release
 ```
 

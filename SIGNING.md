@@ -53,7 +53,7 @@ Earlier versions kept development keys as PEM files under `keys/` and `boards/*/
 microtun-signer local import --key-id microtun-boot-local-p256 --algorithm p256 \
     --pem keys/dev-p256.pem
 microtun-signer local import --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --algorithm rsa-pss \
-    --pem boards/esp32c3-supermini/keys/dev-esp32c3-sbv2-rsa3072.pem
+    --pem boards/esp32-c3-mini-1/keys/dev-esp32c3-sbv2-rsa3072.pem
 microtun-signer local import --key-id microtun-boot-local-rp2350-rom-secp256k1 --algorithm secp256k1 \
     --pem boards/rp2350-pico2/keys/dev-rp2350-rom-secp256k1.pem
 ```

@@ -165,17 +165,17 @@ impl Deref for EspTarget {
 /// Every ESP target compiled into this build.
 pub fn targets() -> impl Iterator<Item = &'static EspTarget> {
     [
-        #[cfg(feature = "esp32c3-supermini")]
+        #[cfg(feature = "esp32-c3-mini-1")]
         &crate::esp32c3::TARGET,
-        #[cfg(feature = "esp32c5-mini")]
+        #[cfg(feature = "esp32-c5-mini-1")]
         &crate::esp32c5::TARGET,
-        #[cfg(feature = "esp32c6-supermini")]
+        #[cfg(feature = "esp32-c6-mini-1")]
         &crate::esp32c6::TARGET,
     ]
     .into_iter()
 }
 
-/// The ESP target named `name` (`esp32c5-mini`), if compiled in.
+/// The ESP target named `name` (`esp32-c5-mini-1`), if compiled in.
 pub fn target_named(name: &str) -> Option<&'static EspTarget> {
     targets().find(|target| target.tools.name == name)
 }

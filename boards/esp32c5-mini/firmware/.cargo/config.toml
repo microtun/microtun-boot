@@ -1,6 +1,0 @@
-# Target, rustflags and [env] come from ../.cargo/config.toml. Linker scripts
-# are passed by build.rs.
-[target.riscv32imac-unknown-none-elf]
-# Signs the image and writes it to the primary slot. Set IMAGE_VERSION to
-# choose the image version.
-runner = ["microtun-boot-tools-esp", "--board", "esp32c5-mini", "flash-app"]

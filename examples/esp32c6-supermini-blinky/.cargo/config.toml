@@ -8,7 +8,7 @@ rustflags = ["-C", "force-frame-pointers"]
 # MCUboot trailer), writes only the signed bytes and opens a monitor.
 # SLOT=image-1 targets the secondary slot instead, and `-- --no-monitor`
 # exits after the reset.
-runner = ["microtun-boot-tools-esp", "--board", "esp32c6-supermini", "flash-app"]
+runner = ["microtun-boot-tools-esp", "--board", "esp32-c6-mini-1", "flash-app"]
 
 [env]
 # Must match the partition table offset baked into the microtun boot boot chain

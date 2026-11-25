@@ -59,7 +59,7 @@ impl ChipInfo {
 }
 
 pub static ESP32C3: ChipInfo = {
-    use microtun_boot_layout_esp32c3_supermini as c;
+    use microtun_boot_layout_esp32_c3_mini_1 as c;
     ChipInfo {
         name: c::CHIP,
         display: "ESP32-C3",
@@ -84,7 +84,7 @@ pub static ESP32C3: ChipInfo = {
         boot_info_address: c::BOOT_INFO_ADDRESS,
         boot_info_size: c::BOOT_INFO_SIZE,
         constants: || {
-            use microtun_boot_layout_esp32c3_supermini::*;
+            use microtun_boot_layout_esp32_c3_mini_1::*;
             microtun_boot_build::named_constants![
                 ROM_BOOTLOADER_OFFSET,
                 ERASE_SIZE,
@@ -110,7 +110,7 @@ pub static ESP32C3: ChipInfo = {
 };
 
 pub static ESP32C5: ChipInfo = {
-    use microtun_boot_layout_esp32c5_mini as c;
+    use microtun_boot_layout_esp32_c5_mini_1 as c;
     ChipInfo {
         name: c::CHIP,
         display: "ESP32-C5",
@@ -136,7 +136,7 @@ pub static ESP32C5: ChipInfo = {
         boot_info_address: c::BOOT_INFO_ADDRESS,
         boot_info_size: c::BOOT_INFO_SIZE,
         constants: || {
-            use microtun_boot_layout_esp32c5_mini::*;
+            use microtun_boot_layout_esp32_c5_mini_1::*;
             microtun_boot_build::named_constants![
                 ROM_BOOTLOADER_OFFSET,
                 ERASE_SIZE,
@@ -162,7 +162,7 @@ pub static ESP32C5: ChipInfo = {
 };
 
 pub static ESP32C6: ChipInfo = {
-    use microtun_boot_layout_esp32c6_supermini as c;
+    use microtun_boot_layout_esp32_c6_mini_1 as c;
     ChipInfo {
         name: c::CHIP,
         display: "ESP32-C6",
@@ -189,7 +189,7 @@ pub static ESP32C6: ChipInfo = {
         boot_info_address: c::BOOT_INFO_ADDRESS,
         boot_info_size: c::BOOT_INFO_SIZE,
         constants: || {
-            use microtun_boot_layout_esp32c6_supermini::*;
+            use microtun_boot_layout_esp32_c6_mini_1::*;
             microtun_boot_build::named_constants![
                 ROM_BOOTLOADER_OFFSET,
                 ERASE_SIZE,
@@ -231,38 +231,38 @@ pub struct Board {
     pub dev_key: DevKey,
 }
 
-pub static ESP32C3_SUPERMINI: Board = Board {
-    name: "esp32c3-supermini",
-    dir_name: "esp32c3-supermini",
+pub static ESP32_C3_MINI_1: Board = Board {
+    name: "esp32-c3-mini-1",
+    dir_name: "esp32-c3-mini-1",
     partitions: "layout/partitions.csv",
     chip: &ESP32C3,
-    flash_size: microtun_boot_layout_esp32c3_supermini::FLASH_SIZE,
+    flash_size: microtun_boot_layout_esp32_c3_mini_1::FLASH_SIZE,
     dev_key: DevKey {
         key_id: "microtun-boot-local-esp32c3-sbv2-rsa3072",
         env: "ESP_SBV2_KEY_ID",
     },
 };
 
-/// ESP32-C5 Mini: an ESP32-C5HF4 with 4 MiB of in-package flash.
-pub static ESP32C5_MINI: Board = Board {
-    name: "esp32c5-mini",
-    dir_name: "esp32c5-mini",
+/// ESP32-C5-MINI-1: an ESP32-C5HF4 with 4 MiB of in-package flash.
+pub static ESP32_C5_MINI_1: Board = Board {
+    name: "esp32-c5-mini-1",
+    dir_name: "esp32-c5-mini-1",
     partitions: "layout/partitions.csv",
     chip: &ESP32C5,
-    flash_size: microtun_boot_layout_esp32c5_mini::FLASH_SIZE,
+    flash_size: microtun_boot_layout_esp32_c5_mini_1::FLASH_SIZE,
     dev_key: DevKey {
         key_id: "microtun-boot-local-esp32c5-sbv2-rsa3072",
         env: "ESP_SBV2_KEY_ID",
     },
 };
 
-/// ESP32-C6 SuperMini: an ESP32-C6FH4 with 4 MiB of in-package flash.
-pub static ESP32C6_SUPERMINI: Board = Board {
-    name: "esp32c6-supermini",
-    dir_name: "esp32c6-supermini",
+/// ESP32-C6-MINI-1: an ESP32-C6FH4 with 4 MiB of in-package flash.
+pub static ESP32_C6_MINI_1: Board = Board {
+    name: "esp32-c6-mini-1",
+    dir_name: "esp32-c6-mini-1",
     partitions: "layout/partitions.csv",
     chip: &ESP32C6,
-    flash_size: microtun_boot_layout_esp32c6_supermini::FLASH_SIZE,
+    flash_size: microtun_boot_layout_esp32_c6_mini_1::FLASH_SIZE,
     dev_key: DevKey {
         key_id: "microtun-boot-local-esp32c6-sbv2-rsa3072",
         env: "ESP_SBV2_KEY_ID",
@@ -270,10 +270,10 @@ pub static ESP32C6_SUPERMINI: Board = Board {
 };
 
 /// Every supported board.
-pub static BOARDS: [&Board; 3] = [&ESP32C3_SUPERMINI, &ESP32C5_MINI, &ESP32C6_SUPERMINI];
+pub static BOARDS: [&Board; 3] = [&ESP32_C3_MINI_1, &ESP32_C5_MINI_1, &ESP32_C6_MINI_1];
 
 /// The names of every supported board.
-pub const BOARD_NAMES: [&str; 3] = ["esp32c3-supermini", "esp32c5-mini", "esp32c6-supermini"];
+pub const BOARD_NAMES: [&str; 3] = ["esp32-c3-mini-1", "esp32-c5-mini-1", "esp32-c6-mini-1"];
 
 impl Board {
     /// The board called `name`.
@@ -338,7 +338,7 @@ mod tests {
             assert_eq!(board.idf_flash_size().unwrap(), "4MB");
             assert_eq!(board.header_flash_size().unwrap(), 2);
         }
-        assert!(std::ptr::eq(ESP32C5_MINI.chip, &ESP32C5));
+        assert!(std::ptr::eq(ESP32_C5_MINI_1.chip, &ESP32C5));
     }
 
     #[test]

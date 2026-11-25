@@ -21,8 +21,8 @@ use microtun_boot_core::{
 
 use crate::{Board, hooks::HookConfig};
 
-/// Flash size of the RP2350 Pico 2 and QEMU fixtures (and the ESP32-C3
-/// SuperMini). Other boards set their own [`Board::flash_size`].
+/// Flash size of the RP2350 Pico 2 and QEMU fixtures (and the
+/// ESP32-C3-MINI-1). Other boards set their own [`Board::flash_size`].
 pub const FLASH_SIZE: usize = 4 * 1024 * 1024;
 pub const SECTOR: u32 = 4096;
 

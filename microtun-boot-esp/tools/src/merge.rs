@@ -49,11 +49,11 @@ pub fn merge(board: &Board, size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::ESP32C3_SUPERMINI;
+    use crate::board::ESP32_C3_MINI_1;
 
     const S: u32 = 0x1000;
     fn merge(size: u32, regions: &[(u32, &[u8])]) -> Result<Vec<u8>> {
-        super::merge(&ESP32C3_SUPERMINI, size, regions)
+        super::merge(&ESP32_C3_MINI_1, size, regions)
     }
 
     #[test]
@@ -86,6 +86,6 @@ mod tests {
         // Bad image sizes.
         assert!(merge(0, &[(0, &[0][..])]).is_err());
         assert!(merge(S + 1, &[(0, &[0][..])]).is_err());
-        assert!(merge(ESP32C3_SUPERMINI.flash_size + S, &[(0, &[0][..])]).is_err());
+        assert!(merge(ESP32_C3_MINI_1.flash_size + S, &[(0, &[0][..])]).is_err());
     }
 }

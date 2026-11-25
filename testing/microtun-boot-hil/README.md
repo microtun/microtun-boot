@@ -15,18 +15,18 @@ Pick one target feature and one suite feature, from the repository root:
 
 ```sh
 cargo test -p microtun-boot-hil --features qemu,regression
-cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
-cargo test -p microtun-boot-hil --features esp32c5-mini,smoke -- --test-threads=1
-cargo test -p microtun-boot-hil --features esp32c6-supermini,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32-c3-mini-1,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32-c5-mini-1,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32-c6-mini-1,smoke -- --test-threads=1
 cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
 ```
 
 | Target | Setup |
 |---|---|
 | `qemu` | [Patched QEMU](../../boards/qemu/README.md), no hardware |
-| `esp32c3-supermini` | [ESP32-C3 SuperMini](../../boards/esp32c3-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
-| `esp32c5-mini` | [ESP32-C5 Mini](../../boards/esp32c5-mini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
-| `esp32c6-supermini` | [ESP32-C6 SuperMini](../../boards/esp32c6-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
+| `esp32-c3-mini-1` | [ESP32-C3-MINI-1](../../boards/esp32-c3-mini-1/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
+| `esp32-c5-mini-1` | [ESP32-C5-MINI-1](../../boards/esp32-c5-mini-1/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
+| `esp32-c6-mini-1` | [ESP32-C6-MINI-1](../../boards/esp32-c6-mini-1/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
 | `rp2350-pico2` | [Pico 2](../../boards/rp2350-pico2/README.md#hardware-in-the-loop-tests) over SWD and UART0 |
 
 | Suite | Covers | Targets |
@@ -56,7 +56,7 @@ fixture write (roughly 20 s for 4 MiB) isn't reset partway through. Because that
 `WRITE_REG`, the ESP HIL suite does not support chips in Secure Download Mode.
 Flash those through a USB-to-UART bridge as the board READMEs describe, and
 keep a separate `dev`-profile board for HIL. The harness unit tests need no hardware:
-`cargo test -p microtun-boot-hil --lib --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini`.
+`cargo test -p microtun-boot-hil --lib --features esp32-c3-mini-1,esp32-c5-mini-1,esp32-c6-mini-1`.
 
 ## Prerequisites
 

@@ -19,8 +19,8 @@
 //! below are board-independent; each board
 //! module contributes a [`Board`] description plus its executable-format code
 //! (ELF conversion, malformed-image mutations) and flash layout. Select the
-//! board under test with `esp32c3-supermini`, `esp32c5-mini`,
-//! `esp32c6-supermini`, `rp2350-pico2`, or `qemu`. The QEMU backend uses isolated guest processes
+//! board under test with `esp32-c3-mini-1`, `esp32-c5-mini-1`,
+//! `esp32-c6-mini-1`, `rp2350-pico2`, or `qemu`. The QEMU backend uses isolated guest processes
 //! and persistent NOR files instead of a probe.
 //!
 //! Harness modules:
@@ -57,11 +57,11 @@ pub type ProbeSession = ();
 
 #[cfg(feature = "esp")]
 pub mod esp;
-#[cfg(feature = "esp32c3-supermini")]
+#[cfg(feature = "esp32-c3-mini-1")]
 pub mod esp32c3;
-#[cfg(feature = "esp32c5-mini")]
+#[cfg(feature = "esp32-c5-mini-1")]
 pub mod esp32c5;
-#[cfg(feature = "esp32c6-supermini")]
+#[cfg(feature = "esp32-c6-mini-1")]
 pub mod esp32c6;
 #[cfg(feature = "rp2350-pico2")]
 pub mod rp2350;
@@ -127,10 +127,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// a single static board description (lazily read from the table on ESP); composed [`flash::FlashImage`]s and
 /// [`dut::Dut`]s carry a reference to it.
 pub struct Board {
-    /// Short name (`esp32c5-mini`): the worker's board argument and
+    /// Short name (`esp32-c5-mini-1`): the worker's board argument and
     /// the console prefix.
     pub name: &'static str,
-    /// Directory under `boards/` (`esp32c5-mini`). It also names the
+    /// Directory under `boards/` (`esp32-c5-mini-1`). It also names the
     /// build directory `target/hil-<dir>/`, the `boards/<dir>/microtun-boot`
     /// crate, `boards/<dir>/firmware` and their `<dir>-microtun-boot` and
     /// `<dir>-firmware` binaries.

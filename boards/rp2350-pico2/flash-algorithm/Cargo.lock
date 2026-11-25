@@ -135,7 +135,7 @@ dependencies = [
 
 [[package]]
 name = "rp2350-flash-algorithm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bytemuck",
  "cortex-m",

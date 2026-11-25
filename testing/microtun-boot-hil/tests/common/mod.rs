@@ -3,16 +3,16 @@
 //! Exactly one board feature supplies payloads, console strings and layout.
 
 #[cfg(any(
-    all(feature = "esp32c3-supermini", feature = "esp32c5-mini"),
-    all(feature = "esp32c6-supermini", feature = "esp32c3-supermini"),
-    all(feature = "esp32c6-supermini", feature = "esp32c5-mini"),
+    all(feature = "esp32-c3-mini-1", feature = "esp32-c5-mini-1"),
+    all(feature = "esp32-c6-mini-1", feature = "esp32-c3-mini-1"),
+    all(feature = "esp32-c6-mini-1", feature = "esp32-c5-mini-1"),
     all(feature = "esp", feature = "rp2350-pico2"),
     all(feature = "esp", feature = "qemu"),
     all(feature = "rp2350-pico2", feature = "qemu"),
 ))]
 compile_error!(
-    "the scenario tests run against one board: enable exactly one of `esp32c3-supermini`, \
-     `esp32c5-mini`, `esp32c6-supermini`, `rp2350-pico2`, or `qemu`"
+    "the scenario tests run against one board: enable exactly one of `esp32-c3-mini-1`, \
+     `esp32-c5-mini-1`, `esp32-c6-mini-1`, `rp2350-pico2`, or `qemu`"
 );
 
 #[cfg(feature = "esp")]

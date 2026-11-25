@@ -1,9 +1,9 @@
 # ESP32 boards: shared boot chain and workflow
 
 Everything in this file applies equally to the three ESP32 boards:
-[ESP32-C3 SuperMini](esp32c3-supermini/README.md),
-[ESP32-C5 Mini](esp32c5-mini/README.md) and
-[ESP32-C6 SuperMini](esp32c6-supermini/README.md). Each board README covers
+[ESP32-C3-MINI-1](esp32-c3-mini-1/README.md),
+[ESP32-C5-MINI-1](esp32-c5-mini-1/README.md) and
+[ESP32-C6-MINI-1](esp32-c6-mini-1/README.md). Each board README covers
 only what is specific to that board: requirements, flash layout, chip
 quirks, its security counter and its status.
 
@@ -169,25 +169,25 @@ Mode rejects `WRITE_REG`, so the tool can only warn, and any write longer than
 the remaining watchdog time is cut off by a chip reset. A reset through `EN`
 also resets the watchdog.
 
-None of the boards has an on-board USB-to-UART bridge, so use an external
-3.3 V adapter on UART0, plus GND:
+The modules have no USB-to-UART bridge, so use an external 3.3 V adapter on
+UART0, plus GND:
 
-| Board | Adapter TX → | Adapter RX → | BOOT button |
+| Module | Adapter TX → | Adapter RX → | BOOT strapping pin |
 |---|---|---|---|
-| ESP32-C3 SuperMini | GPIO20 (U0RXD) | GPIO21 (U0TXD) | GPIO9 |
-| ESP32-C5 Mini | GPIO12 (U0RXD, header `RX`) | GPIO11 (U0TXD, `TX`) | GPIO28 |
-| ESP32-C6 SuperMini | GPIO17 (U0RXD) | GPIO16 (U0TXD) | GPIO9 |
+| ESP32-C3-MINI-1 | GPIO20 (U0RXD) | GPIO21 (U0TXD) | GPIO9 |
+| ESP32-C5-MINI-1 | GPIO12 (U0RXD) | GPIO11 (U0TXD) | GPIO28 |
+| ESP32-C6-MINI-1 | GPIO17 (U0RXD) | GPIO16 (U0TXD) | GPIO9 |
 
 Unless the adapter's DTR/RTS drive `EN` and the BOOT pin, enter download mode
-by hand: hold **BOOT**, press and release **RESET**, then release **BOOT**.
+by hand: hold **BOOT** low, pulse **EN** (RESET) low, then release **BOOT**.
 
 ```sh
 export ESPPORT=/dev/ttyUSB0   # the adapter; it is never auto-detected
 ```
 
 The UART runs at 115200 baud, so large writes are much slower than over
-USB-Serial-JTAG. On the C5 Mini, microtun boot still logs on the USB-C port,
-so keep it connected if you want to watch the boot.
+USB-Serial-JTAG. On the ESP32-C5-MINI-1, microtun boot still logs on
+USB-Serial-JTAG, so keep it connected if you want to watch the boot.
 
 ## Security counter
 
@@ -199,9 +199,9 @@ header.
 
 | Board | eFuse | Epochs | Status |
 |---|---|---|---|
-| [ESP32-C3 SuperMini](esp32c3-supermini/README.md#security-counter) | `BLOCK0.SECURE_VERSION` | 16 | Enforced |
-| [ESP32-C5 Mini](esp32c5-mini/README.md#security-counter) | — | — | Temporarily disabled; see the board README |
-| [ESP32-C6 SuperMini](esp32c6-supermini/README.md#security-counter) | `BLOCK0.SECURE_VERSION` (bits 142–157) | 16 | Enforced |
+| [ESP32-C3-MINI-1](esp32-c3-mini-1/README.md#security-counter) | `BLOCK0.SECURE_VERSION` | 16 | Enforced |
+| [ESP32-C5-MINI-1](esp32-c5-mini-1/README.md#security-counter) | — | — | Temporarily disabled; see the board README |
+| [ESP32-C6-MINI-1](esp32-c6-mini-1/README.md#security-counter) | `BLOCK0.SECURE_VERSION` (bits 142–157) | 16 | Enforced |
 
 ## Hardware-in-the-loop tests
 
@@ -212,3 +212,20 @@ Each board README has the exact command and the board-specific notes. Boards
 must use the `dev` bootloader profile: the `release` profile disables JTAG and
 revokes spare key slots. The suites themselves are described in
 [`microtun-boot-hil`](../testing/microtun-boot-hil/README.md).
+
+## Compatible development boards
+
+The board targets are named after the Espressif module each one matches.
+Maker Go's small development boards carry the same chip, flash size and
+USB-Serial-JTAG wiring, so they use the matching target unchanged:
+
+| Development board | Target | Notes |
+|---|---|---|
+| [ESP32-C3 SuperMini](https://makergo.cc/product/esp32-c3-supermini-development-board/) ([wiki](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c3mini)) | `esp32-c3-mini-1` | Blue LED on GPIO8 (active low), BOOT button on GPIO9 |
+| NiceMCU [ESP32-C5 Mini](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c5mini) | `esp32-c5-mini-1` | User LED on GPIO23, BOOT button on GPIO28; UART0 on the header's `TX`/`RX` |
+| [ESP32-C6 SuperMini](https://makergo.cc/product/esp32-c6-supermini-development-board/) ([wiki](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c6mini)) | `esp32-c6-mini-1` | WS2812 RGB LED on GPIO8, BOOT button on GPIO9 |
+
+The ESP32 [blinky examples](../examples/README.md) are written for these
+boards and use their LED and button pins. "SuperMini" boards come
+from several vendors; check that a clone has the same chip and 4 MiB of
+flash before using the target.

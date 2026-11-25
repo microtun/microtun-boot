@@ -1,0 +1,47 @@
+# Shared by everything built from this board directory. Each binary's own
+# .cargo/config.toml adds its runner.
+[build]
+target = "riscv32imac-unknown-none-elf"
+
+[target.riscv32imac-unknown-none-elf]
+rustflags = ["-C", "force-frame-pointers"]
+
+[env]
+# Bootstrap locator: the table cannot describe its own address. Host tools
+# also read this setting and check that partitions leave its sector free.
+# Keep the ESP-IDF second-stage sdkconfig offset in agreement.
+ESP_BOOTLOADER_ESP_IDF_CONFIG_PARTITION_TABLE_OFFSET = "65536"
+# esp-hal locks PMP entries over its own .rwtext/.stack/.data on the C6. Locked
+# entries also bind machine mode until reset, so the RAM handoff loader could
+# not copy the application over microtun boot's former RAM. microtun-boot-esp's
+# build script refuses a C6 bootloader built without this. (It also applies
+# to the test firmware built from this directory; applications are free to
+# keep esp-hal's default.)
+ESP_HAL_CONFIG_ENABLE_PMP = "false"
+
+# Profiles for ESP binaries when invoked from this board directory. All
+# packages share the root workspace; local Cargo config overrides its profile.
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"
+incremental = false
+
+[profile.release.package.esp32-c6-mini-1-firmware]
+opt-level = "s"
+
+[profile.dev]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+debug = 2
+panic = "abort"
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.esp32-c6-mini-1-firmware]
+opt-level = "s"
+debug-assertions = true
+overflow-checks = true

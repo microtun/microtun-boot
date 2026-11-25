@@ -15,20 +15,20 @@ pub use microtun_boot_hil::scenario::{BOOT, QUIET, behave, expect_running, field
 use microtun_boot_hil::esp::{EspTarget, artifacts, flash};
 
 /// The board under test. (`mod.rs` rejects enabling more than one ESP board.)
-#[cfg(feature = "esp32c3-supermini")]
+#[cfg(feature = "esp32-c3-mini-1")]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c3::TARGET;
-#[cfg(all(feature = "esp32c5-mini", not(feature = "esp32c3-supermini")))]
+#[cfg(all(feature = "esp32-c5-mini-1", not(feature = "esp32-c3-mini-1")))]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET;
 #[cfg(all(
-    feature = "esp32c6-supermini",
-    not(any(feature = "esp32c3-supermini", feature = "esp32c5-mini"))
+    feature = "esp32-c6-mini-1",
+    not(any(feature = "esp32-c3-mini-1", feature = "esp32-c5-mini-1"))
 ))]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c6::TARGET;
 
 /// Number of SECURE_VERSION epochs (eFuse bits) on the board's chip.
-#[cfg(feature = "esp32c3-supermini")]
+#[cfg(feature = "esp32-c3-mini-1")]
 pub const SECURITY_COUNTER_CAPACITY: u32 = microtun_boot_hil::esp32c3::SECURE_VERSION.bits;
-#[cfg(all(feature = "esp32c6-supermini", not(feature = "esp32c3-supermini")))]
+#[cfg(all(feature = "esp32-c6-mini-1", not(feature = "esp32-c3-mini-1")))]
 pub const SECURITY_COUNTER_CAPACITY: u32 = microtun_boot_hil::esp32c6::SECURE_VERSION.bits;
 
 /// imgtool for the board's slot geometry, with the RP2350/QEMU signature.

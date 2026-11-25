@@ -543,7 +543,7 @@ pub fn replace_region(
 mod tests {
     use super::*;
 
-    const FLASH_SIZE: u32 = crate::board::ESP32C3_SUPERMINI.flash_size;
+    const FLASH_SIZE: u32 = crate::board::ESP32_C3_MINI_1.flash_size;
 
     fn check_range(offset: u32, size: u32) -> Result<()> {
         super::check_range(FLASH_SIZE, offset, size)
@@ -568,19 +568,19 @@ mod tests {
 
     #[test]
     fn board_must_not_need_more_flash_than_the_chip_reports() {
-        use crate::board::ESP32C5_MINI;
+        use crate::board::ESP32_C5_MINI_1;
         const MIB: u32 = 1 << 20;
-        let error = check_physical_flash(&ESP32C5_MINI, Some(2 * MIB)).unwrap_err();
+        let error = check_physical_flash(&ESP32_C5_MINI_1, Some(2 * MIB)).unwrap_err();
         assert!(
-            error.to_string().contains("esp32c5-mini needs 4 MiB"),
+            error.to_string().contains("esp32-c5-mini-1 needs 4 MiB"),
             "{error}"
         );
         assert!(error.to_string().contains("reports 2 MiB"), "{error}");
-        assert!(check_physical_flash(&ESP32C5_MINI, Some(4 * MIB)).is_ok());
+        assert!(check_physical_flash(&ESP32_C5_MINI_1, Some(4 * MIB)).is_ok());
         // A smaller layout on a larger chip leaves the rest unused.
-        assert!(check_physical_flash(&ESP32C5_MINI, Some(16 * MIB)).is_ok());
+        assert!(check_physical_flash(&ESP32_C5_MINI_1, Some(16 * MIB)).is_ok());
         // Unknown (Secure Download Mode, failed JEDEC read): rely on the board.
-        assert!(check_physical_flash(&ESP32C5_MINI, None).is_ok());
+        assert!(check_physical_flash(&ESP32_C5_MINI_1, None).is_ok());
     }
 
     #[test]
@@ -614,10 +614,10 @@ mod tests {
 
     #[test]
     fn hil_rom_writer_validates_regions_before_opening_usb() {
-        let c5 = &crate::board::ESP32C5_MINI;
+        let c5 = &crate::board::ESP32_C5_MINI_1;
         let error = write_rom_region_no_reset(c5, "missing-port", 0, &[0x55]).unwrap_err();
         assert!(error.to_string().contains("reserved bytes"), "{error}");
-        let c3 = &crate::board::ESP32C3_SUPERMINI;
+        let c3 = &crate::board::ESP32_C3_MINI_1;
         let error = write_rom_region_no_reset(c3, "missing-port", 0x1000, &[]).unwrap_err();
         assert!(
             error.to_string().contains("empty ESP flash image"),

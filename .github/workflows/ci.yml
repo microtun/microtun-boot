@@ -51,19 +51,19 @@ jobs:
       - name: Clippy (ESP HIL harness and scenarios)
         run: |
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini \
+            --features esp32-c3-mini-1,esp32-c5-mini-1,esp32-c6-mini-1 \
             --locked -- -D warnings
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c3-supermini,smoke,security-counter --locked -- -D warnings
+            --features esp32-c3-mini-1,smoke,security-counter --locked -- -D warnings
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c6-supermini,smoke,security-counter --locked -- -D warnings
+            --features esp32-c6-mini-1,smoke,security-counter --locked -- -D warnings
           # TODO(esp32c5): restore security-counter after the eFuse fix.
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c5-mini,smoke --locked -- -D warnings
+            --features esp32-c5-mini-1,smoke --locked -- -D warnings
       - name: ESP HIL harness unit tests (no hardware)
         run: |
           cargo test -p microtun-boot-hil --lib --bins --locked \
-            --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini
+            --features esp32-c3-mini-1,esp32-c5-mini-1,esp32-c6-mini-1
 
   security:
     name: Rust dependency security
@@ -106,24 +106,24 @@ jobs:
         include:
           - name: ESP32-C3
             target: riscv32imc-unknown-none-elf
-            board-dir: boards/esp32c3-supermini
+            board-dir: boards/esp32-c3-mini-1
             cache-workspace: .
-            package-args: -p esp32c3-supermini-microtun-boot -p esp32c3-supermini-firmware
-            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c3-supermini -p microtun-boot-chip-esp32c3
+            package-args: -p esp32-c3-mini-1-microtun-boot -p esp32-c3-mini-1-firmware
+            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32-c3-mini-1 -p microtun-boot-chip-esp32c3
             library-features: microtun-boot-esp/esp32c3,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
           - name: ESP32-C5
             target: riscv32imac-unknown-none-elf
-            board-dir: boards/esp32c5-mini
+            board-dir: boards/esp32-c5-mini-1
             cache-workspace: .
-            package-args: -p esp32c5-mini-microtun-boot -p esp32c5-mini-firmware
-            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c5-mini -p microtun-boot-chip-esp32c5
+            package-args: -p esp32-c5-mini-1-microtun-boot -p esp32-c5-mini-1-firmware
+            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32-c5-mini-1 -p microtun-boot-chip-esp32c5
             library-features: microtun-boot-esp/esp32c5,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
           - name: ESP32-C6
             target: riscv32imac-unknown-none-elf
-            board-dir: boards/esp32c6-supermini
+            board-dir: boards/esp32-c6-mini-1
             cache-workspace: .
-            package-args: -p esp32c6-supermini-microtun-boot -p esp32c6-supermini-firmware
-            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c6-supermini -p microtun-boot-chip-esp32c6
+            package-args: -p esp32-c6-mini-1-microtun-boot -p esp32-c6-mini-1-firmware
+            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32-c6-mini-1 -p microtun-boot-chip-esp32c6
             library-features: microtun-boot-esp/esp32c6,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
           - name: RP2350
             target: thumbv8m.main-none-eabihf

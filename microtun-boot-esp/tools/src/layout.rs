@@ -193,7 +193,7 @@ mod tests {
     /// The C5 layout matches the documentation in its partition table.
     #[test]
     fn c5_layout_matches_documentation() {
-        let layout = default_layout(&crate::board::ESP32C5_MINI).unwrap();
+        let layout = default_layout(&crate::board::ESP32_C5_MINI_1).unwrap();
         assert_eq!(layout.board.flash_size, 0x0040_0000);
         assert_eq!(layout.offset, 0x10000);
         assert_eq!(layout.region("nvs").unwrap(), (0x11000, 0x5000));
@@ -212,7 +212,7 @@ mod tests {
     /// A table that needs more flash than the board has is rejected.
     #[test]
     fn tables_larger_than_the_board_flash_are_rejected() {
-        let board = &crate::board::ESP32C5_MINI;
+        let board = &crate::board::ESP32_C5_MINI_1;
         let table = std::fs::read_to_string(board.partitions_path()).unwrap();
         let larger = table.replace("0x3F8000, 0x8000", "0x7F8000, 0x8000");
         assert_ne!(table, larger);

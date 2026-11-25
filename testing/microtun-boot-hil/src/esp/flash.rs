@@ -183,7 +183,7 @@ mod tests {
 
     /// The C5 fixture is exactly the board's 4 MiB, and an image of another
     /// size is refused before any USB traffic.
-    #[cfg(feature = "esp32c5-mini")]
+    #[cfg(feature = "esp32-c5-mini-1")]
     #[test]
     fn c5_fixture_matches_the_board_and_rejects_other_sizes() {
         const MIB: u64 = 1 << 20;

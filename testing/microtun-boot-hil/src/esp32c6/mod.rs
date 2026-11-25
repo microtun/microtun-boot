@@ -1,6 +1,5 @@
-//! ESP32-C6 SuperMini: 4 MiB flash, second stage at `0x0`, console and
-//! fixture flashing over the chip's USB-Serial-JTAG (GPIO12/GPIO13, the
-//! board's USB-C connector).
+//! ESP32-C6-MINI-1: 4 MiB flash, second stage at `0x0`, console and
+//! fixture flashing over the chip's USB-Serial-JTAG (GPIO12/GPIO13).
 //!
 //! Everything else is the shared ESP back-end in [`crate::esp`], called with
 //! [`TARGET`].
@@ -8,7 +7,7 @@
 use crate::esp::{EspBoard, EspTarget, SecureVersionEfuse};
 
 /// Hardware/RAM ABI shared with the target; no partition locations.
-pub use microtun_boot_layout_esp32c6_supermini as layout;
+pub use microtun_boot_layout_esp32_c6_mini_1 as layout;
 
 /// ESP-IDF v5.5.5 eFuse table: SECURE_VERSION is 16 bits at bits 14..29 of
 /// BLOCK0 read word 4 (BLOCK0 bits 142..157), as on the ESP32-C3. The eFuse
@@ -22,9 +21,9 @@ pub const SECURE_VERSION: SecureVersionEfuse = SecureVersionEfuse {
 
 pub static TARGET: EspTarget = EspTarget::new(
     EspBoard {
-        tools: &microtun_boot_tools_esp::board::ESP32C6_SUPERMINI,
+        tools: &microtun_boot_tools_esp::board::ESP32_C6_MINI_1,
         rust_target: "riscv32imac-unknown-none-elf",
-        port_hint: "the board's USB-C (USB-Serial-JTAG) port (preferably /dev/serial/by-id/...)",
+        port_hint: "the board's USB-Serial-JTAG port (preferably /dev/serial/by-id/...)",
         usb_pins: "GPIO12 (D-) / GPIO13 (D+)",
         secure_version: SECURE_VERSION,
     },
@@ -32,5 +31,5 @@ pub static TARGET: EspTarget = EspTarget::new(
 );
 
 const _: () =
-    assert!(layout::FLASH_SIZE == microtun_boot_tools_esp::board::ESP32C6_SUPERMINI.flash_size);
+    assert!(layout::FLASH_SIZE == microtun_boot_tools_esp::board::ESP32_C6_MINI_1.flash_size);
 const _: () = assert!(layout::ERASE_SIZE == crate::flash::SECTOR);
