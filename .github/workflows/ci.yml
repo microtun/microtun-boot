@@ -51,21 +51,19 @@ jobs:
       - name: Clippy (ESP HIL harness and scenarios)
         run: |
           cargo clippy -p microtun-boot-hil --all-targets \
-            --features esp32c3-supermini,esp32c5-devkitc-1-n4,esp32c5-devkitc-1-n8,esp32c5-devkitc-1-n16,esp32c6-supermini \
+            --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini \
             --locked -- -D warnings
           cargo clippy -p microtun-boot-hil --all-targets \
             --features esp32c3-supermini,smoke,security-counter --locked -- -D warnings
           cargo clippy -p microtun-boot-hil --all-targets \
             --features esp32c6-supermini,smoke,security-counter --locked -- -D warnings
           # TODO(esp32c5): restore security-counter after the eFuse fix.
-          for board in esp32c5-devkitc-1-n4 esp32c5-devkitc-1-n8 esp32c5-devkitc-1-n16; do
-            cargo clippy -p microtun-boot-hil --all-targets \
-              --features "$board,smoke" --locked -- -D warnings
-          done
+          cargo clippy -p microtun-boot-hil --all-targets \
+            --features esp32c5-mini,smoke --locked -- -D warnings
       - name: ESP HIL harness unit tests (no hardware)
         run: |
           cargo test -p microtun-boot-hil --lib --bins --locked \
-            --features esp32c3-supermini,esp32c5-devkitc-1-n4,esp32c5-devkitc-1-n8,esp32c5-devkitc-1-n16,esp32c6-supermini
+            --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini
 
   security:
     name: Rust dependency security
@@ -115,10 +113,10 @@ jobs:
             library-features: microtun-boot-esp/esp32c3,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
           - name: ESP32-C5
             target: riscv32imac-unknown-none-elf
-            board-dir: boards/esp32c5-devkitc-1
+            board-dir: boards/esp32c5-mini
             cache-workspace: .
-            package-args: -p esp32c5-devkitc-1-microtun-boot -p esp32c5-devkitc-1-firmware
-            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c5-devkitc-1 -p microtun-boot-chip-esp32c5
+            package-args: -p esp32c5-mini-microtun-boot -p esp32c5-mini-firmware
+            library-args: -p microtun-boot-esp -p microtun-boot-layout-esp32c5-mini -p microtun-boot-chip-esp32c5
             library-features: microtun-boot-esp/esp32c5,microtun-boot-esp/boot-runtime,microtun-boot-esp/uuid
           - name: ESP32-C6
             target: riscv32imac-unknown-none-elf
@@ -201,9 +199,9 @@ jobs:
             target: riscv32imc-unknown-none-elf
             example-dir: examples/esp32c3-supermini-blinky
             feature-args: ""
-          - name: ESP32-C5-DevKitC-1 blinky
+          - name: ESP32-C5 Mini blinky
             target: riscv32imac-unknown-none-elf
-            example-dir: examples/esp32c5-devkitc-1-blinky
+            example-dir: examples/esp32c5-mini-blinky
             feature-args: ""
           - name: ESP32-C6 SuperMini blinky
             target: riscv32imac-unknown-none-elf

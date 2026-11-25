@@ -277,12 +277,12 @@ mod tests {
             board(&[
                 "esp-tools",
                 "--board",
-                "esp32c5-devkitc-1-n16",
+                "esp32c5-mini",
                 "flash-app",
                 "fw.elf"
             ])
             .unwrap(),
-            "esp32c5-devkitc-1-n16"
+            "esp32c5-mini"
         );
         assert_eq!(
             board(&["esp-tools", "layout", "--board", "esp32c3-supermini"]).unwrap(),
@@ -294,8 +294,7 @@ mod tests {
         );
         // Boards are named, not chips.
         assert!(board(&["esp-tools", "--board", "esp32c6", "layout"]).is_err());
-        // The C5 board is chosen by flash size; there is no generic name.
-        assert!(board(&["esp-tools", "--board", "esp32c5-devkitc-1", "layout"]).is_err());
+        assert!(board(&["esp-tools", "--board", "esp32c5", "layout"]).is_err());
     }
 
     #[test]

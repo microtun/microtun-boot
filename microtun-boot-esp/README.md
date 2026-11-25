@@ -6,7 +6,7 @@ the partition table at runtime, so nothing here is board-specific.
 
 For a complete, flashable setup see the
 [ESP32-C3 SuperMini](../boards/esp32c3-supermini/README.md),
-[ESP32-C5-DevKitC-1](../boards/esp32c5-devkitc-1/README.md) or
+[ESP32-C5 Mini](../boards/esp32c5-mini/README.md) or
 [ESP32-C6 SuperMini](../boards/esp32c6-supermini/README.md) board.
 `tools/` holds the `microtun-boot-tools-esp` host tool.
 
@@ -14,7 +14,7 @@ With esp-hal 1.2.2, ESP32-C5 temporarily has no hardware security-counter
 support and no TRNG-backed jitter. The eFuse counter module and `BootRng`
 are C3 and C6 only. C5 retains protected VID/CID policy, signature re-authentication,
 load-plan verification and the power glitch detector. See the
-[C5 board notes](../boards/esp32c5-devkitc-1/README.md#security-counter)
+[C5 board notes](../boards/esp32c5-mini/README.md#security-counter)
 for restoration TODOs.
 
 The ESP32-C6 has the C3's feature set (eFuse counter, TRNG jitter) except
@@ -48,7 +48,7 @@ let mut updater = microtun_boot_esp::updater(&layout, &boot, &flash).expect("lay
 Then follow the [core README](../microtun-boot-core/README.md#updating-from-an-application)
 to stage and confirm images, and the
 board README ([C3](../boards/esp32c3-supermini/README.md#writing-an-application),
-[C5](../boards/esp32c5-devkitc-1/README.md#writing-an-application),
+[C5](../boards/esp32c5-mini/README.md#writing-an-application),
 [C6](../boards/esp32c6-supermini/README.md#writing-an-application))
 for what else your application must do (watchdog, confirmation).
 

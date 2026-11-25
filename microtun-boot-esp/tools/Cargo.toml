@@ -24,7 +24,7 @@ crc32fast = "1"
 esp-idf-part = { workspace = true }
 espflash = { workspace = true }
 microtun-boot-layout-esp32c3-supermini = { workspace = true }
-microtun-boot-layout-esp32c5-devkitc-1 = { workspace = true }
+microtun-boot-layout-esp32c5-mini = { workspace = true }
 microtun-boot-layout-esp32c6-supermini = { workspace = true }
 microtun-boot-build = { workspace = true, features = ["tools"] }
 rsa = "0.10"

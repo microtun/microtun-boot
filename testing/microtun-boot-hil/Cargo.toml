@@ -19,7 +19,7 @@ publish = false
 #
 #   cargo test -p microtun-boot-hil --features qemu,regression
 #   cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
-#   cargo test -p microtun-boot-hil --features esp32c5-devkitc-1-n8,smoke -- --test-threads=1
+#   cargo test -p microtun-boot-hil --features esp32c5-mini,smoke -- --test-threads=1
 #   cargo test -p microtun-boot-hil --features esp32c6-supermini,smoke -- --test-threads=1
 #   cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
 #   cargo test -p microtun-boot-hil --features esp32c3-supermini,security-counter
@@ -36,13 +36,7 @@ regression = ["security-counter"]
 # Opt-in anti-rollback suite: permanently advances OTP/eFuse on physical boards.
 security-counter = []
 esp32c3-supermini = ["esp", "dep:microtun-boot-layout-esp32c3-supermini"]
-# ESP32-C5-DevKitC-1, by flash size (4, 8 or 16 MiB). The three share the
-# `esp32c5` board module and the boards/esp32c5-devkitc-1 builds.
-esp32c5-devkitc-1-n4 = ["esp32c5"]
-esp32c5-devkitc-1-n8 = ["esp32c5"]
-esp32c5-devkitc-1-n16 = ["esp32c5"]
-# Shared ESP32-C5 board module, enabled by the C5 board features; not a target itself.
-esp32c5 = ["esp", "dep:microtun-boot-layout-esp32c5-devkitc-1"]
+esp32c5-mini = ["esp", "dep:microtun-boot-layout-esp32c5-mini"]
 esp32c6-supermini = ["esp", "dep:microtun-boot-layout-esp32c6-supermini"]
 # Shared ESP back-end, enabled by the ESP board features; not a target itself.
 esp = ["dep:esp-idf-part", "dep:espflash", "dep:probe-rs", "dep:probe-rs-espressif", "dep:microtun-boot-tools-esp"]
@@ -69,7 +63,7 @@ serde_json = { version = "1", optional = true }
 # Board layout crates: chip facts plus each test board's own values.
 microtun-boot-layout-qemu = { path = "../../boards/qemu/layout", optional = true }
 microtun-boot-layout-esp32c3-supermini = { path = "../../boards/esp32c3-supermini/layout", optional = true }
-microtun-boot-layout-esp32c5-devkitc-1 = { path = "../../boards/esp32c5-devkitc-1/layout", optional = true }
+microtun-boot-layout-esp32c5-mini = { path = "../../boards/esp32c5-mini/layout", optional = true }
 microtun-boot-layout-esp32c6-supermini = { path = "../../boards/esp32c6-supermini/layout", optional = true }
 microtun-boot-layout-rp2350-pico2 = { path = "../../boards/rp2350-pico2/layout", optional = true }
 # ESP32 (C3, C5, C6): upstream ESP image conversion, SBv2 secure padding, and ROM

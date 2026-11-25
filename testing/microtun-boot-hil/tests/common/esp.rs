@@ -17,25 +17,11 @@ use microtun_boot_hil::esp::{EspTarget, artifacts, flash};
 /// The board under test. (`mod.rs` rejects enabling more than one ESP board.)
 #[cfg(feature = "esp32c3-supermini")]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c3::TARGET;
-#[cfg(all(feature = "esp32c5-devkitc-1-n4", not(feature = "esp32c3-supermini")))]
-pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N4;
-#[cfg(all(
-    feature = "esp32c5-devkitc-1-n8",
-    not(any(feature = "esp32c3-supermini", feature = "esp32c5-devkitc-1-n4"))
-))]
-pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N8;
-#[cfg(all(
-    feature = "esp32c5-devkitc-1-n16",
-    not(any(
-        feature = "esp32c3-supermini",
-        feature = "esp32c5-devkitc-1-n4",
-        feature = "esp32c5-devkitc-1-n8"
-    ))
-))]
-pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET_N16;
+#[cfg(all(feature = "esp32c5-mini", not(feature = "esp32c3-supermini")))]
+pub static ESP: &EspTarget = &microtun_boot_hil::esp32c5::TARGET;
 #[cfg(all(
     feature = "esp32c6-supermini",
-    not(any(feature = "esp32c3-supermini", feature = "esp32c5"))
+    not(any(feature = "esp32c3-supermini", feature = "esp32c5-mini"))
 ))]
 pub static ESP: &EspTarget = &microtun_boot_hil::esp32c6::TARGET;
 

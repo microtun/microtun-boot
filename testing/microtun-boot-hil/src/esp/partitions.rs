@@ -180,9 +180,8 @@ mod tests {
         }
     }
 
-    /// A slot pair that extends beyond 4 MiB is rejected on the 4 MiB boards
-    /// (C3, C5 N4) and accepted on the larger C5 variants: the check follows
-    /// each board's configured limit.
+    /// A slot pair that extends beyond 4 MiB is rejected on the 4 MiB boards:
+    /// the check follows each board's configured limit.
     #[test]
     fn partitions_are_bounded_by_the_board_flash_size() {
         let large = binary(

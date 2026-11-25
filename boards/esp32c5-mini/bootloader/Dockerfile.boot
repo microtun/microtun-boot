@@ -6,12 +6,11 @@ WORKDIR /project
 # The selected profile becomes the actual sdkconfig.defaults before IDF runs.
 # Always generate sdkconfig fresh: never reuse a config from another profile.
 ARG ESP_BOOTLOADER_PROFILE=dev
-# The board's flash size (4MB, 8MB or 16MB) and partition table
-# (layout/partitions-<n4|n8|n16>.csv). Both are required:
-# microtun-boot-tools-esp passes them from its board table, since the
-# esp32c5-devkitc-1-n4/-n8/-n16 boards share this project.
+# The board's flash size (4MB, 8MB or 16MB) and partition table (relative to
+# the board directory). microtun-boot-tools-esp passes both from its board
+# table; boards that share this project differ only in these two.
 ARG ESP_FLASH_SIZE
-ARG ESP_PARTITION_TABLE
+ARG ESP_PARTITION_TABLE=layout/partitions.csv
 COPY bootloader/CMakeLists.txt bootloader/sdkconfig.defaults.dev bootloader/sdkconfig.defaults.release ./
 COPY ${ESP_PARTITION_TABLE} partitions.csv
 

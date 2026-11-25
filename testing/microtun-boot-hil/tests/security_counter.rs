@@ -2,7 +2,7 @@
 //! TODO(esp32c5): restore this suite when the C5 eFuse counter is supported.
 #![cfg(all(
     feature = "security-counter",
-    not(feature = "esp32c5"),
+    not(feature = "esp32c5-mini"),
     any(feature = "esp", feature = "rp2350-pico2", feature = "qemu")
 ))]
 

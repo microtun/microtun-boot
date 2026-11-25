@@ -223,9 +223,7 @@ mod tests {
             for other in [
                 "qemu",
                 "esp32c3-supermini",
-                "esp32c5-devkitc-1-n4",
-                "esp32c5-devkitc-1-n8",
-                "esp32c5-devkitc-1-n16",
+                "esp32c5-mini",
                 "esp32c6-supermini",
             ] {
                 assert!(!variant.features(other).contains("production"));

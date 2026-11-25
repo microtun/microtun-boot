@@ -17,8 +17,8 @@ boots an image that fails verification.
 - **Policy:** downgrade prevention, minimum version, hardware security counter
   (anti-rollback; temporarily disabled on ESP32-C5), imgtool `--vid`/`--cid`.
 - **Boards:** [ESP32-C3 SuperMini](boards/esp32c3-supermini/README.md),
-  [ESP32-C5-DevKitC-1](boards/esp32c5-devkitc-1/README.md) (4, 8 or 16 MiB
-  flash), [ESP32-C6 SuperMini](boards/esp32c6-supermini/README.md),
+  [ESP32-C5 Mini](boards/esp32c5-mini/README.md),
+  [ESP32-C6 SuperMini](boards/esp32c6-supermini/README.md),
   [RP2350 Pico 2 / Pico 2 W](boards/rp2350-pico2/README.md) and
   [QEMU](boards/qemu/README.md) (tests only).
 
@@ -30,7 +30,7 @@ affiliated with MCUboot. Read [SECURITY.md](SECURITY.md) and
 
 - **Run an application on a released bootloader:** follow the
   [ESP32-C3](examples/esp32c3-supermini-blinky/README.md),
-  [ESP32-C5](examples/esp32c5-devkitc-1-blinky/README.md),
+  [ESP32-C5](examples/esp32c5-mini-blinky/README.md),
   [ESP32-C6](examples/esp32c6-supermini-blinky/README.md) or
   [RP2350](examples/rp2350-pico2-blinky/README.md) blinky example.
 - **Build and flash your own bootloader:** follow the board README.

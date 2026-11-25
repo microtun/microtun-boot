@@ -110,7 +110,7 @@ pub static ESP32C3: ChipInfo = {
 };
 
 pub static ESP32C5: ChipInfo = {
-    use microtun_boot_layout_esp32c5_devkitc_1 as c;
+    use microtun_boot_layout_esp32c5_mini as c;
     ChipInfo {
         name: c::CHIP,
         display: "ESP32-C5",
@@ -136,7 +136,7 @@ pub static ESP32C5: ChipInfo = {
         boot_info_address: c::BOOT_INFO_ADDRESS,
         boot_info_size: c::BOOT_INFO_SIZE,
         constants: || {
-            use microtun_boot_layout_esp32c5_devkitc_1::*;
+            use microtun_boot_layout_esp32c5_mini::*;
             microtun_boot_build::named_constants![
                 ROM_BOOTLOADER_OFFSET,
                 ERASE_SIZE,
@@ -243,42 +243,18 @@ pub static ESP32C3_SUPERMINI: Board = Board {
     },
 };
 
-/// An ESP32-C5-DevKitC-1 with `flash_size` bytes of flash. The variants
-/// share one board directory and differ only in their partition table.
-const fn esp32c5_devkitc_1(name: &'static str, partitions: &'static str, flash_size: u32) -> Board {
-    Board {
-        name,
-        dir_name: "esp32c5-devkitc-1",
-        partitions,
-        chip: &ESP32C5,
-        flash_size,
-        dev_key: DevKey {
-            key_id: "microtun-boot-local-esp32c5-sbv2-rsa3072",
-            env: "ESP_SBV2_KEY_ID",
-        },
-    }
-}
-
-/// ESP32-C5-DevKitC-1 with 4 MiB of flash (`…-N4` module).
-pub static ESP32C5_DEVKITC_1_N4: Board = esp32c5_devkitc_1(
-    "esp32c5-devkitc-1-n4",
-    "layout/partitions-n4.csv",
-    microtun_boot_layout_esp32c5_devkitc_1::n4::FLASH_SIZE,
-);
-
-/// ESP32-C5-DevKitC-1 with 8 MiB of flash (`…-N8R8` module).
-pub static ESP32C5_DEVKITC_1_N8: Board = esp32c5_devkitc_1(
-    "esp32c5-devkitc-1-n8",
-    "layout/partitions-n8.csv",
-    microtun_boot_layout_esp32c5_devkitc_1::n8::FLASH_SIZE,
-);
-
-/// ESP32-C5-DevKitC-1 with 16 MiB of flash (`…-N16R8` module).
-pub static ESP32C5_DEVKITC_1_N16: Board = esp32c5_devkitc_1(
-    "esp32c5-devkitc-1-n16",
-    "layout/partitions-n16.csv",
-    microtun_boot_layout_esp32c5_devkitc_1::n16::FLASH_SIZE,
-);
+/// ESP32-C5 Mini: an ESP32-C5HF4 with 4 MiB of in-package flash.
+pub static ESP32C5_MINI: Board = Board {
+    name: "esp32c5-mini",
+    dir_name: "esp32c5-mini",
+    partitions: "layout/partitions.csv",
+    chip: &ESP32C5,
+    flash_size: microtun_boot_layout_esp32c5_mini::FLASH_SIZE,
+    dev_key: DevKey {
+        key_id: "microtun-boot-local-esp32c5-sbv2-rsa3072",
+        env: "ESP_SBV2_KEY_ID",
+    },
+};
 
 /// ESP32-C6 SuperMini: an ESP32-C6FH4 with 4 MiB of in-package flash.
 pub static ESP32C6_SUPERMINI: Board = Board {
@@ -294,22 +270,10 @@ pub static ESP32C6_SUPERMINI: Board = Board {
 };
 
 /// Every supported board.
-pub static BOARDS: [&Board; 5] = [
-    &ESP32C3_SUPERMINI,
-    &ESP32C5_DEVKITC_1_N4,
-    &ESP32C5_DEVKITC_1_N8,
-    &ESP32C5_DEVKITC_1_N16,
-    &ESP32C6_SUPERMINI,
-];
+pub static BOARDS: [&Board; 3] = [&ESP32C3_SUPERMINI, &ESP32C5_MINI, &ESP32C6_SUPERMINI];
 
 /// The names of every supported board.
-pub const BOARD_NAMES: [&str; 5] = [
-    "esp32c3-supermini",
-    "esp32c5-devkitc-1-n4",
-    "esp32c5-devkitc-1-n8",
-    "esp32c5-devkitc-1-n16",
-    "esp32c6-supermini",
-];
+pub const BOARD_NAMES: [&str; 3] = ["esp32c3-supermini", "esp32c5-mini", "esp32c6-supermini"];
 
 impl Board {
     /// The board called `name`.
@@ -364,26 +328,17 @@ mod tests {
             board.espflash_size().unwrap();
         }
         assert!(Board::named("esp32c4").is_err());
-        // The C5 variants are named by flash size; the old shared name is gone.
-        assert!(Board::named("esp32c5-devkitc-1").is_err());
     }
 
     #[test]
-    fn c5_variants_share_a_directory_and_differ_in_flash() {
-        let variants = [
-            (&ESP32C5_DEVKITC_1_N4, 0x0040_0000, "4MB", 2),
-            (&ESP32C5_DEVKITC_1_N8, 0x0080_0000, "8MB", 3),
-            (&ESP32C5_DEVKITC_1_N16, 0x0100_0000, "16MB", 4),
-        ];
-        for (board, size, idf, header) in variants {
-            assert_eq!(board.dir_name, "esp32c5-devkitc-1");
-            assert!(std::ptr::eq(board.chip, &ESP32C5));
-            assert_eq!(board.flash_size, size, "{}", board.name);
-            assert_eq!(board.idf_flash_size().unwrap(), idf);
-            assert_eq!(board.header_flash_size().unwrap(), header);
+    fn boards_have_4_mib_of_flash() {
+        for board in BOARDS {
+            assert!(board.dir().is_dir(), "{}", board.name);
+            assert_eq!(board.flash_size, 0x0040_0000, "{}", board.name);
+            assert_eq!(board.idf_flash_size().unwrap(), "4MB");
+            assert_eq!(board.header_flash_size().unwrap(), 2);
         }
-        assert_eq!(ESP32C3_SUPERMINI.idf_flash_size().unwrap(), "4MB");
-        assert_eq!(ESP32C6_SUPERMINI.idf_flash_size().unwrap(), "4MB");
+        assert!(std::ptr::eq(ESP32C5_MINI.chip, &ESP32C5));
     }
 
     #[test]

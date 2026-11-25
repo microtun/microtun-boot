@@ -3,9 +3,5 @@
 # second stage and factory microtun boot, then flashes both with the partition
 # table (set NO_FLASH=1 to build and sign only). See ../README.md before
 # flashing: the first boot permanently enables Secure Boot V2.
-#
-# The runner names no board: set MICROTUN_BOOT_ESP_BOARD to the variant that
-# matches the module's flash (esp32c5-devkitc-1-n4, -n8 or -n16). The binary
-# is the same for all three; the partition table and IDF flash size are not.
 [target.riscv32imac-unknown-none-elf]
-runner = ["microtun-boot-tools-esp", "flash-bootloader"]
+runner = ["microtun-boot-tools-esp", "--board", "esp32c5-mini", "flash-bootloader"]

@@ -288,7 +288,7 @@ fn check_physical_flash(board: &Board, detected: Option<u32>) -> Result<()> {
         ensure!(
             detected >= board.flash_size,
             "--board {} needs {} MiB of flash, but the chip reports {} MiB; \
-             choose the board that matches the module's flash size",
+             is --board right for this chip?",
             board.name,
             board.flash_size >> 20,
             detected >> 20
@@ -554,31 +554,13 @@ mod tests {
     }
 
     #[test]
-    fn c5_variants_limit_writes_to_their_flash() {
-        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8, ESP32C5_DEVKITC_1_N16};
-        // Each variant's secondary slot and storage, and the next variant's
-        // secondary slot.
-        for (board, secondary, storage, larger) in [
-            (
-                &ESP32C5_DEVKITC_1_N4,
-                (0x22f000, 0x1b9000),
-                0x3f8000,
-                Some((0x42f000, 0x3b9000)),
-            ),
-            (
-                &ESP32C5_DEVKITC_1_N8,
-                (0x42f000, 0x3b9000),
-                0x7f8000,
-                Some((0x82f000, 0x7b9000)),
-            ),
-            (&ESP32C5_DEVKITC_1_N16, (0x82f000, 0x7b9000), 0xff8000, None),
-        ] {
+    fn writes_stay_within_the_board_flash() {
+        for board in crate::board::BOARDS {
             let size = board.flash_size;
-            assert!(super::check_range(size, secondary.0, secondary.1).is_ok());
-            assert!(super::check_range(size, storage, 0x8000).is_ok());
-            if let Some((offset, len)) = larger {
-                assert!(super::check_range(size, offset, len).is_err());
-            }
+            // The secondary slot and storage of every 4 MiB layout.
+            assert!(super::check_range(size, 0x22f000, 0x1b9000).is_ok());
+            assert!(super::check_range(size, 0x3f8000, 0x8000).is_ok());
+            assert!(super::check_range(size, 0x3f8000, 0x10000).is_err());
             assert!(super::check_write(size, size - SECTOR_SIZE, &[0]).is_ok());
             assert!(super::check_write(size, size, &[0]).is_err());
         }
@@ -586,21 +568,19 @@ mod tests {
 
     #[test]
     fn board_must_not_need_more_flash_than_the_chip_reports() {
-        use crate::board::{ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N16};
+        use crate::board::ESP32C5_MINI;
         const MIB: u32 = 1 << 20;
-        let error = check_physical_flash(&ESP32C5_DEVKITC_1_N16, Some(4 * MIB)).unwrap_err();
+        let error = check_physical_flash(&ESP32C5_MINI, Some(2 * MIB)).unwrap_err();
         assert!(
-            error
-                .to_string()
-                .contains("esp32c5-devkitc-1-n16 needs 16 MiB"),
+            error.to_string().contains("esp32c5-mini needs 4 MiB"),
             "{error}"
         );
-        assert!(error.to_string().contains("reports 4 MiB"), "{error}");
-        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N16, Some(16 * MIB)).is_ok());
+        assert!(error.to_string().contains("reports 2 MiB"), "{error}");
+        assert!(check_physical_flash(&ESP32C5_MINI, Some(4 * MIB)).is_ok());
         // A smaller layout on a larger chip leaves the rest unused.
-        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N4, Some(16 * MIB)).is_ok());
+        assert!(check_physical_flash(&ESP32C5_MINI, Some(16 * MIB)).is_ok());
         // Unknown (Secure Download Mode, failed JEDEC read): rely on the board.
-        assert!(check_physical_flash(&ESP32C5_DEVKITC_1_N16, None).is_ok());
+        assert!(check_physical_flash(&ESP32C5_MINI, None).is_ok());
     }
 
     #[test]
@@ -634,7 +614,7 @@ mod tests {
 
     #[test]
     fn hil_rom_writer_validates_regions_before_opening_usb() {
-        let c5 = &crate::board::ESP32C5_DEVKITC_1_N4;
+        let c5 = &crate::board::ESP32C5_MINI;
         let error = write_rom_region_no_reset(c5, "missing-port", 0, &[0x55]).unwrap_err();
         assert!(error.to_string().contains("reserved bytes"), "{error}");
         let c3 = &crate::board::ESP32C3_SUPERMINI;

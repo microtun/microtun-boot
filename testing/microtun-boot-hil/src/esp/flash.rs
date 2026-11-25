@@ -181,15 +181,15 @@ mod tests {
         }
     }
 
-    /// Each C5 variant's fixture is exactly its own flash size, and an image
-    /// composed for another variant is refused before any USB traffic.
-    #[cfg(feature = "esp32c5")]
+    /// The C5 fixture is exactly the board's 4 MiB, and an image of another
+    /// size is refused before any USB traffic.
+    #[cfg(feature = "esp32c5-mini")]
     #[test]
-    fn c5_fixture_matches_its_variant_and_rejects_other_sizes() {
+    fn c5_fixture_matches_the_board_and_rejects_other_sizes() {
         const MIB: u64 = 1 << 20;
         for target in targets().filter(|target| target.chip().name == "esp32c5") {
             let size = u64::from(target.tools.flash_size);
-            assert!([4 * MIB, 8 * MIB, 16 * MIB].contains(&size));
+            assert_eq!(size, 4 * MIB);
             let chain = super::super::artifacts::Bootloader {
                 image: vec![0xa5; 64],
                 idf_image: vec![0x5a; 64],

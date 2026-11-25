@@ -1,5 +1,4 @@
-# Shared by everything built from this board directory, for all three
-# esp32c5-devkitc-1-n4/-n8/-n16 boards. Each binary's own
+# Shared by everything built from this board directory. Each binary's own
 # .cargo/config.toml adds its runner.
 [build]
 target = "riscv32imac-unknown-none-elf"
@@ -30,7 +29,7 @@ debug = 2
 panic = "abort"
 incremental = false
 
-[profile.release.package.esp32c5-devkitc-1-firmware]
+[profile.release.package.esp32c5-mini-firmware]
 opt-level = "s"
 
 [profile.dev]
@@ -42,7 +41,7 @@ panic = "abort"
 debug-assertions = false
 overflow-checks = false
 
-[profile.dev.package.esp32c5-devkitc-1-firmware]
+[profile.dev.package.esp32c5-mini-firmware]
 opt-level = "s"
 debug-assertions = true
 overflow-checks = true

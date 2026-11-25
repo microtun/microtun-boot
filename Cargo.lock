@@ -1715,7 +1715,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp32c5-devkitc-1-blinky"
+name = "esp32c5-mini-blinky"
 version = "0.3.0"
 dependencies = [
  "embassy-executor",
@@ -1731,7 +1731,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp32c5-devkitc-1-firmware"
+name = "esp32c5-mini-firmware"
 version = "0.3.0"
 dependencies = [
  "embassy-executor",
@@ -1749,7 +1749,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "esp32c5-devkitc-1-microtun-boot"
+name = "esp32c5-mini-microtun-boot"
 version = "0.3.0"
 dependencies = [
  "esp-bootloader-esp-idf",
@@ -2672,7 +2672,7 @@ dependencies = [
  "microtun-boot-build",
  "microtun-boot-core",
  "microtun-boot-layout-esp32c3-supermini",
- "microtun-boot-layout-esp32c5-devkitc-1",
+ "microtun-boot-layout-esp32c5-mini",
  "microtun-boot-layout-esp32c6-supermini",
  "microtun-boot-layout-qemu",
  "microtun-boot-layout-rp2350-pico2",
@@ -2697,7 +2697,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "microtun-boot-layout-esp32c5-devkitc-1"
+name = "microtun-boot-layout-esp32c5-mini"
 version = "0.3.0"
 dependencies = [
  "microtun-boot-chip-esp32c5",
@@ -2772,7 +2772,7 @@ dependencies = [
  "espflash",
  "microtun-boot-build",
  "microtun-boot-layout-esp32c3-supermini",
- "microtun-boot-layout-esp32c5-devkitc-1",
+ "microtun-boot-layout-esp32c5-mini",
  "microtun-boot-layout-esp32c6-supermini",
  "rsa",
  "serialport",

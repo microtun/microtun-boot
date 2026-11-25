@@ -6,4 +6,4 @@
 !bootloader/sdkconfig.defaults.release
 !bootloader/Dockerfile.boot
 !layout/
-!layout/partitions-*.csv
+!layout/partitions.csv

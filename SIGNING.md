@@ -151,7 +151,7 @@ To flash a previously signed CI release image without signing again, pass
 `--signed-bin` to the board's `flash-bootloader` command. See "Flash a signed
 release binary" in the
 [ESP32-C3](boards/esp32c3-supermini/README.md#flash-a-signed-release-binary),
-[ESP32-C5](boards/esp32c5-devkitc-1/README.md#flash-a-signed-release-binary),
+[ESP32-C5](boards/esp32c5-mini/README.md#flash-a-signed-release-binary),
 [ESP32-C6](boards/esp32c6-supermini/README.md#flash-a-signed-release-binary)
 and [RP2350](boards/rp2350-pico2/README.md#flash-a-signed-release-binary)
 READMEs. Verification uses the public key embedded in the file; check the

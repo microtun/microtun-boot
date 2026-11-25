@@ -1,11 +1,10 @@
 #![no_std]
 #![no_main]
-//! ESP32-C5-DevKitC-1 + microtun boot + Embassy example.
+//! ESP32-C5 Mini + microtun boot + Embassy example.
 //!
-//! * Blinks the on-board addressable RGB LED (a WS2812-type LED on GPIO27,
-//!   driven by the RMT peripheral). The colour and rhythm show the boot
-//!   state: fast **amber** flashes while a trial (test) image is still
-//!   unconfirmed, a slow **green** heartbeat once the image is permanent.
+//! * Blinks the on-board user LED (GPIO23). The blink pattern shows the boot
+//!   state: fast while a trial (test) image is still unconfirmed, slow once
+//!   the image is permanent.
 //! * Pressing the BOOT button (GPIO28) prints the microtun boot handoff info.
 //! * After a short self-test the running image confirms itself, so a swap
 //!   upgrade is kept instead of being reverted on the next reset.
@@ -20,12 +19,9 @@ use embassy_executor::Spawner;
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
 use esp_hal::{
-    Async,
     clock::CpuClock,
-    gpio::{Input, InputConfig, Level, Pull},
-    rmt::{Channel, PulseCode, Rmt, Tx, TxChannelConfig, TxChannelCreator},
+    gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull},
     rtc_cntl::Rwdt,
-    time::Rate,
     timer::timg::TimerGroup,
 };
 use log::{error, info, warn};
@@ -40,46 +36,9 @@ static CONFIRMED: AtomicBool = AtomicBool::new(false);
 /// How long the application must run healthily before it confirms itself.
 const SELF_TEST: Duration = Duration::from_secs(5);
 
-/// Colours, kept dim: the LED is very bright at full scale.
-const AMBER: Rgb = Rgb(24, 10, 0);
-const GREEN: Rgb = Rgb(0, 20, 0);
-const OFF: Rgb = Rgb(0, 0, 0);
-
-#[derive(Clone, Copy)]
-struct Rgb(u8, u8, u8);
-
-/// Minimal driver for the board's single WS2812-type LED.
-///
-/// The RMT runs at 80 MHz (12.5 ns per tick). Each colour bit is one RMT
-/// pulse code: a `1` is 0.8 µs high then 0.45 µs low, a `0` is 0.4 µs high
-/// then 0.85 µs low. The LED latches the 24 bits (GRB order, MSB first) once
-/// the line has stayed low for more than 50 µs, which the idle level and the
-/// pause between updates guarantee.
-struct Ws2812 {
-    channel: Channel<'static, Async, Tx>,
-}
-
-impl Ws2812 {
-    const RMT_MHZ: u32 = 80;
-    const ONE: PulseCode = PulseCode::new(Level::High, 64, Level::Low, 36);
-    const ZERO: PulseCode = PulseCode::new(Level::High, 32, Level::Low, 68);
-
-    async fn write(&mut self, Rgb(r, g, b): Rgb) {
-        let mut codes = [PulseCode::end_marker(); 25];
-        for (i, byte) in [g, r, b].into_iter().enumerate() {
-            for bit in 0..8 {
-                codes[i * 8 + bit] = if byte & (0x80 >> bit) != 0 {
-                    Self::ONE
-                } else {
-                    Self::ZERO
-                };
-            }
-        }
-        if let Err(e) = self.channel.transmit(&codes).await {
-            warn!("LED update failed: {:?}", e);
-        }
-    }
-}
+/// Level that lights the user LED on GPIO23. Flip it if the LED on your board
+/// is wired to 3.3 V (active low): the heartbeat then shows as short gaps.
+const LED_ON: Level = Level::High;
 
 #[embassy_executor::task]
 async fn watchdog(mut wdt: Rwdt) -> ! {
@@ -90,16 +49,16 @@ async fn watchdog(mut wdt: Rwdt) -> ! {
 }
 
 #[embassy_executor::task]
-async fn blink(mut led: Ws2812) -> ! {
+async fn blink(mut led: Output<'static>) -> ! {
     loop {
-        let (colour, period) = if CONFIRMED.load(Ordering::Relaxed) {
-            (GREEN, Duration::from_millis(1_000))
+        let period = if CONFIRMED.load(Ordering::Relaxed) {
+            Duration::from_millis(1_000)
         } else {
-            (AMBER, Duration::from_millis(150))
+            Duration::from_millis(150)
         };
-        led.write(colour).await;
+        led.set_level(LED_ON);
         Timer::after(Duration::from_millis(50)).await;
-        led.write(OFF).await;
+        led.set_level(!LED_ON);
         Timer::after(period).await;
     }
 }
@@ -143,21 +102,9 @@ async fn main(spawner: Spawner) {
         }
     };
 
-    let rmt = Rmt::new(p.RMT, Rate::from_mhz(Ws2812::RMT_MHZ))
-        .expect("RMT clock")
-        .into_async();
-    let channel = rmt
-        .channel0
-        .configure_tx(
-            &TxChannelConfig::default()
-                .with_clk_divider(1)
-                .with_idle_output_level(Level::Low)
-                .with_idle_output(true),
-        )
-        .expect("RMT TX channel")
-        .with_pin(p.GPIO27);
+    let led = Output::new(p.GPIO23, !LED_ON, OutputConfig::default());
     let boot_button = Input::new(p.GPIO28, InputConfig::default().with_pull(Pull::Up));
-    spawner.spawn(blink(Ws2812 { channel }).expect("spawn blink"));
+    spawner.spawn(blink(led).expect("spawn blink"));
     spawner.spawn(button(boot_button, boot).expect("spawn button"));
 
     // Slots come from the partition table in flash, not from compile-time

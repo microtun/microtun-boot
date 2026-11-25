@@ -1,6 +1,6 @@
 [package]
 license.workspace = true
-name = "esp32c5-devkitc-1-firmware"
+name = "esp32c5-mini-firmware"
 description = "ESP32-C5 microtun boot example firmware"
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ rust-version.workspace = true
 publish = false
 
 [[bin]]
-name = "esp32c5-devkitc-1-firmware"
+name = "esp32c5-mini-firmware"
 path = "src/main.rs"
 test = false
 bench = false

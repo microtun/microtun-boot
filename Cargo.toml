@@ -13,9 +13,9 @@ members = [
     "boards/esp32c3-supermini/microtun-boot",
     "boards/esp32c3-supermini/firmware",
     "boards/esp32c3-supermini/layout",
-    "boards/esp32c5-devkitc-1/microtun-boot",
-    "boards/esp32c5-devkitc-1/firmware",
-    "boards/esp32c5-devkitc-1/layout",
+    "boards/esp32c5-mini/microtun-boot",
+    "boards/esp32c5-mini/firmware",
+    "boards/esp32c5-mini/layout",
     "boards/esp32c6-supermini/microtun-boot",
     "boards/esp32c6-supermini/firmware",
     "boards/esp32c6-supermini/layout",
@@ -28,7 +28,7 @@ members = [
     "testing/microtun-boot-hil",
     "testing/microtun-boot-test-hooks",
     "examples/esp32c3-supermini-blinky",
-    "examples/esp32c5-devkitc-1-blinky",
+    "examples/esp32c5-mini-blinky",
     "examples/esp32c6-supermini-blinky",
     "examples/rp2350-pico2-blinky",
 ]
@@ -87,7 +87,7 @@ microtun-boot-esp = { path = "microtun-boot-esp", default-features = false }
 microtun-boot-rp = { path = "microtun-boot-rp", default-features = false, features = ["rp235xa"] }
 microtun-boot-qemu = { path = "microtun-boot-qemu", default-features = false, features = ["mps2-an385"] }
 microtun-boot-layout-esp32c3-supermini = { path = "boards/esp32c3-supermini/layout" }
-microtun-boot-layout-esp32c5-devkitc-1 = { path = "boards/esp32c5-devkitc-1/layout" }
+microtun-boot-layout-esp32c5-mini = { path = "boards/esp32c5-mini/layout" }
 microtun-boot-layout-esp32c6-supermini = { path = "boards/esp32c6-supermini/layout" }
 microtun-boot-layout-rp2350-pico2 = { path = "boards/rp2350-pico2/layout" }
 microtun-boot-layout-qemu = { path = "boards/qemu/layout" }

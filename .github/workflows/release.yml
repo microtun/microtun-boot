@@ -193,26 +193,17 @@ jobs:
       matrix:
         board:
           - esp32c3-supermini
-          - esp32c5-devkitc-1-n4
-          - esp32c5-devkitc-1-n8
-          - esp32c5-devkitc-1-n16
+          - esp32c5-mini
           - esp32c6-supermini
         profile: [dev, release]
         # `dir` is the board directory under boards/ and its crates' name
-        # prefix. The C5 variants share one: the same microtun boot binary,
-        # but each has its own partition table and IDF flash size.
+        # prefix.
         include:
           - board: esp32c3-supermini
             dir: esp32c3-supermini
             target: riscv32imc-unknown-none-elf
-          - board: esp32c5-devkitc-1-n4
-            dir: esp32c5-devkitc-1
-            target: riscv32imac-unknown-none-elf
-          - board: esp32c5-devkitc-1-n8
-            dir: esp32c5-devkitc-1
-            target: riscv32imac-unknown-none-elf
-          - board: esp32c5-devkitc-1-n16
-            dir: esp32c5-devkitc-1
+          - board: esp32c5-mini
+            dir: esp32c5-mini
             target: riscv32imac-unknown-none-elf
           - board: esp32c6-supermini
             dir: esp32c6-supermini
@@ -449,9 +440,7 @@ jobs:
           # board:chip:key name:board directory (the microtun boot ELF's prefix).
           for spec in \
             esp32c3-supermini:esp32c3:ESP32C3:esp32c3-supermini \
-            esp32c5-devkitc-1-n4:esp32c5:ESP32C5:esp32c5-devkitc-1 \
-            esp32c5-devkitc-1-n8:esp32c5:ESP32C5:esp32c5-devkitc-1 \
-            esp32c5-devkitc-1-n16:esp32c5:ESP32C5:esp32c5-devkitc-1 \
+            esp32c5-mini:esp32c5:ESP32C5:esp32c5-mini \
             esp32c6-supermini:esp32c6:ESP32C6:esp32c6-supermini; do
             IFS=: read -r board chip name board_dir <<< "$spec"
             # The merged image's size follows from the board's layout.
@@ -536,17 +525,13 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t assets < <(find dist -type f -name '*.bin' -print | sort)
-          # 2 profiles x (merged ESP32-C3, ESP32-C5 N4/N8/N16 and ESP32-C6
-          # boot chains + RP2350).
+          # 2 profiles x (merged ESP32-C3, ESP32-C5 and ESP32-C6 boot chains
+          # + RP2350).
           expected=(
             esp32c3-supermini-dev-boot-chain.sbv2.bin
             esp32c3-supermini-release-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n4-dev-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n4-release-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n8-dev-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n8-release-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n16-dev-boot-chain.sbv2.bin
-            esp32c5-devkitc-1-n16-release-boot-chain.sbv2.bin
+            esp32c5-mini-dev-boot-chain.sbv2.bin
+            esp32c5-mini-release-boot-chain.sbv2.bin
             esp32c6-supermini-dev-boot-chain.sbv2.bin
             esp32c6-supermini-release-boot-chain.sbv2.bin
             rp2350-pico2-dev-microtun-boot.signed.bin

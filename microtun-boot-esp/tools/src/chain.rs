@@ -315,10 +315,7 @@ impl BootChain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::{
-        BOARDS, ESP32C3_SUPERMINI, ESP32C5_DEVKITC_1_N4, ESP32C5_DEVKITC_1_N8,
-        ESP32C5_DEVKITC_1_N16, ESP32C6_SUPERMINI,
-    };
+    use crate::board::{BOARDS, ESP32C3_SUPERMINI, ESP32C5_MINI, ESP32C6_SUPERMINI};
 
     /// An ESP image of `len` bytes whose header names `board`'s flash size.
     fn esp_image(board: &Board, len: usize) -> Vec<u8> {
@@ -364,47 +361,24 @@ mod tests {
         merged_image_layout(&ESP32C3_SUPERMINI, 0x60000);
         // The C6 ROM, like the C3's, loads the second stage from 0x0.
         merged_image_layout(&ESP32C6_SUPERMINI, 0x60000);
-        // The C5 ROM loads the second stage from 0x2000. Every variant has
-        // the same boot chain span; only the slots beyond it grow.
-        for board in [
-            &ESP32C5_DEVKITC_1_N4,
-            &ESP32C5_DEVKITC_1_N8,
-            &ESP32C5_DEVKITC_1_N16,
-        ] {
-            merged_image_layout(board, 0x5e000);
-        }
+        // The C5 ROM loads the second stage from 0x2000.
+        merged_image_layout(&ESP32C5_MINI, 0x5e000);
     }
 
-    /// A boot chain signed for one C5 variant is refused on another: the
-    /// partition table differs, and so do the stage headers' flash size.
+    /// A boot chain whose stages were built for another flash size (e.g. a
+    /// reused ESP_IDF_BOOTLOADER_BIN) is refused.
     #[test]
-    fn signed_chain_is_bound_to_its_variant() {
-        let chain_for = |board: &'static Board| {
-            BootChain {
-                stage2: crate::sbv2::test_key::signed(&esp_image(board, 0x2000)),
-                microtun_boot: crate::sbv2::test_key::signed(&esp_image(board, 0x10000)),
-                layout: crate::layout::default_layout(board).unwrap(),
-            }
-            .merged()
-            .unwrap()
-        };
-        let n4 = crate::layout::default_layout(&ESP32C5_DEVKITC_1_N4).unwrap();
-        let n16 = crate::layout::default_layout(&ESP32C5_DEVKITC_1_N16).unwrap();
-        verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N4), &n4).unwrap();
-        assert!(verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N16), &n4).is_err());
-        assert!(verify_signed_merged(&chain_for(&ESP32C5_DEVKITC_1_N4), &n16).is_err());
-
-        // Same table, stage built for the wrong flash size (e.g. a reused
-        // 4 MiB ESP_IDF_BOOTLOADER_BIN).
+    fn signed_chain_is_bound_to_the_board_flash_size() {
+        let board = &ESP32C5_MINI;
+        let layout = crate::layout::default_layout(board).unwrap();
+        let mut stale_stage2 = esp_image(board, 0x2000);
+        stale_stage2[3] = 3 << 4; // 8 MiB
         let stale = BootChain {
-            stage2: crate::sbv2::test_key::signed(&esp_image(&ESP32C5_DEVKITC_1_N4, 0x2000)),
-            microtun_boot: crate::sbv2::test_key::signed(&esp_image(
-                &ESP32C5_DEVKITC_1_N16,
-                0x10000,
-            )),
-            layout: crate::layout::default_layout(&ESP32C5_DEVKITC_1_N16).unwrap(),
+            stage2: crate::sbv2::test_key::signed(&stale_stage2),
+            microtun_boot: crate::sbv2::test_key::signed(&esp_image(board, 0x10000)),
+            layout: crate::layout::default_layout(board).unwrap(),
         };
-        let error = verify_signed_merged(&stale.merged().unwrap(), &n16).unwrap_err();
+        let error = verify_signed_merged(&stale.merged().unwrap(), &layout).unwrap_err();
         assert!(
             error.to_string().contains("different flash size"),
             "{error}"
@@ -424,9 +398,9 @@ mod tests {
             assert!(check_flash_size(board, &not_esp, "stage").is_err());
         }
         // The flash frequency in the low nibble is not checked.
-        let mut image = esp_image(&ESP32C5_DEVKITC_1_N8, 32);
+        let mut image = esp_image(&ESP32C5_MINI, 32);
         image[3] |= 0x0f;
-        check_flash_size(&ESP32C5_DEVKITC_1_N8, &image, "stage").unwrap();
+        check_flash_size(&ESP32C5_MINI, &image, "stage").unwrap();
     }
 
     #[test]

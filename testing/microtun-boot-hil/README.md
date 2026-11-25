@@ -16,7 +16,7 @@ Pick one target feature and one suite feature, from the repository root:
 ```sh
 cargo test -p microtun-boot-hil --features qemu,regression
 cargo test -p microtun-boot-hil --features esp32c3-supermini,smoke -- --test-threads=1
-cargo test -p microtun-boot-hil --features esp32c5-devkitc-1-n8,smoke -- --test-threads=1
+cargo test -p microtun-boot-hil --features esp32c5-mini,smoke -- --test-threads=1
 cargo test -p microtun-boot-hil --features esp32c6-supermini,smoke -- --test-threads=1
 cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=1
 ```
@@ -25,7 +25,7 @@ cargo test -p microtun-boot-hil --features rp2350-pico2,smoke -- --test-threads=
 |---|---|
 | `qemu` | [Patched QEMU](../../boards/qemu/README.md), no hardware |
 | `esp32c3-supermini` | [ESP32-C3 SuperMini](../../boards/esp32c3-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
-| `esp32c5-devkitc-1-n4`, `-n8`, `-n16` | [ESP32-C5-DevKitC-1](../../boards/esp32c5-devkitc-1/README.md#hardware-in-the-loop-tests) with 4, 8 or 16 MiB of flash, over USB-Serial-JTAG (the "ESP32-C5 USB" port) |
+| `esp32c5-mini` | [ESP32-C5 Mini](../../boards/esp32c5-mini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
 | `esp32c6-supermini` | [ESP32-C6 SuperMini](../../boards/esp32c6-supermini/README.md#hardware-in-the-loop-tests) over USB-Serial-JTAG |
 | `rp2350-pico2` | [Pico 2](../../boards/rp2350-pico2/README.md#hardware-in-the-loop-tests) over SWD and UART0 |
 
@@ -45,20 +45,18 @@ fixtures use `SEC_CNT=0` without a JTAG fuse read. TODO(esp32c5): restore the
 suite and DUT-floor signing when the eFuse implementation is verified.
 
 All ESP boards share one back-end (`src/esp/`); `src/esp32c3/`,
-`src/esp32c5/` and `src/esp32c6/` only describe the boards. The three C5 variants share one
-board directory, so they also share its builds under `target/hil-esp32c5-devkitc-1/`. The ESP HIL flash worker reuses the
+`src/esp32c5/` and `src/esp32c6/` only describe the boards. The ESP HIL flash worker reuses the
 ROM-only SPI attach, flash geometry, erase and data commands in
 `microtun-boot-tools-esp::flash`: it sends no RAM stub or `FLASH_END`, and
 leaves the reset to the parent after console capture starts. It retains the
 ESP32-C5 reserved flash prefix and the worker timeout. After connecting, it
 disables the RTC watchdog (which microtun boot leaves armed for 15 s across the
 USB-Serial-JTAG reset) and sets the super watchdog to auto-feed, so the
-fixture write (roughly 20 s for 4 MiB, proportionally longer for 8 and
-16 MiB) isn't reset partway through. Because that needs
+fixture write (roughly 20 s for 4 MiB) isn't reset partway through. Because that needs
 `WRITE_REG`, the ESP HIL suite does not support chips in Secure Download Mode.
 Flash those through a USB-to-UART bridge as the board READMEs describe, and
 keep a separate `dev`-profile board for HIL. The harness unit tests need no hardware:
-`cargo test -p microtun-boot-hil --lib --features esp32c3-supermini,esp32c5-devkitc-1-n4,esp32c5-devkitc-1-n8,esp32c5-devkitc-1-n16,esp32c6-supermini`.
+`cargo test -p microtun-boot-hil --lib --features esp32c3-supermini,esp32c5-mini,esp32c6-supermini`.
 
 ## Prerequisites
 

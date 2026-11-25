@@ -1,11 +1,10 @@
-# ESP32-C5-DevKitC-1 blinky
+# ESP32-C5 Mini blinky
 
 A minimal Embassy application for the [microtun boot](../../README.md) bootloader
-on an ESP32-C5-DevKitC-1, and a template for your own.
+on an ESP32-C5 Mini, and a template for your own.
 
-- Flashes the addressable RGB LED (GPIO27, driven through the RMT
-  peripheral): fast **amber** while the image is an unconfirmed trial, a slow
-  **green** heartbeat once it is permanent.
+- Blinks the user LED (GPIO23): fast while the image is an unconfirmed
+  trial, a slow heartbeat once it is permanent.
 - The **BOOT button** (GPIO28) logs what microtun boot handed over: mode, slot, maximum
   image size and bootloader version.
 - **Confirms** itself after a 5 s self-test. If it resets or panics before
@@ -37,26 +36,18 @@ end to end, local or remote, is in [SIGNING.md](../../SIGNING.md).
 > RSA key is burned into eFuse. From then on the board only boots boot chains
 > signed with that key. Use a board you are willing to dedicate.
 
-First pick the [board variant](../../boards/esp32c5-devkitc-1/README.md#board-variants)
-for your module's flash size: `esp32c5-devkitc-1-n4`, `-n8` or `-n16`. The
-flash tool and `cargo run` take it from `MICROTUN_BOOT_ESP_BOARD`.
-
-Download the matching `<board>-dev-boot-chain.sbv2.bin` from a
-[microtun boot release](https://github.com/microtun/microtun-boot/releases), then
-connect the board through the **ESP32-C5 USB** connector (native
-USB-Serial-JTAG, not the UART one) and flash the boot chain followed by the
-application:
+Download `esp32c5-mini-dev-boot-chain.sbv2.bin` from a
+[microtun boot release](https://github.com/microtun/microtun-boot/releases),
+connect the board through its USB-C port and flash the boot chain followed by
+the application:
 
 ```sh
-export MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1-n8   # match the module's flash
 export ESPPORT=/dev/ttyACM0
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
-  "$MICROTUN_BOOT_ESP_BOARD-dev-boot-chain.sbv2.bin"
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-mini \
+  flash-bootloader --signed-bin \
+  esp32c5-mini-dev-boot-chain.sbv2.bin
 cargo run --release      # sign, flash image-0 and open the monitor (Ctrl+C to exit)
 ```
-
-Keep `MICROTUN_BOOT_ESP_BOARD` set for later `cargo run`s: the image must be
-signed and flashed for the slot size of the boot chain on the board.
 
 microtun boot reboots until the application is installed; flashing the
 application last lets you watch the first boot.
@@ -67,7 +58,7 @@ application last lets you watch the first boot.
 cargo run --release                          # IMAGE_VERSION defaults to 0.1.0
 IMAGE_VERSION=0.2.0 cargo run --release
 NO_FLASH=1 IMAGE_VERSION=0.2.0 cargo run --release   # sign only, e.g. for an OTA payload
-# -> ../../target/riscv32imac-unknown-none-elf/release/esp32c5-devkitc-1-blinky.signed.bin
+# -> ../../target/riscv32imac-unknown-none-elf/release/esp32c5-mini-blinky.signed.bin
 ```
 
 `cargo run` writes the primary slot directly, so the image boots as permanent:
@@ -87,14 +78,14 @@ transport.
 > **Anti-rollback (temporarily disabled):** `SECURITY_COUNTER` (default `0`) is
 > signed metadata only on C5 with esp-hal 1.2.2. It does not block older
 > images. Leave it at `0` until hardware rollback support returns; see the
-> [board README](../../boards/esp32c5-devkitc-1/README.md#security-counter).
+> [board README](../../boards/esp32c5-mini/README.md#security-counter).
 
 ## Use your own keys
 
 Instead of the released boot chain, you can build one that trusts your local
 keys. No remote signer is needed, but a board already provisioned with the
 `dev` boot chain **cannot switch** to your keys: use a fresh board. Follow the
-[board README](../../boards/esp32c5-devkitc-1/README.md) for setup and back
+[board README](../../boards/esp32c5-mini/README.md) for setup and back
 up your key store first.
 
 From the repository root, with these exports kept for every step:
@@ -105,13 +96,13 @@ export MICROTUN_SIGNER_GITHUB_LOGIN=false
 export MICROTUN_SIGNER_KEY_ID=microtun-boot-local-p256
 export MICROTUN_BOOT_KEY_ID=microtun-boot-local-p256
 export ESP_SBV2_KEY_ID=microtun-boot-local-esp32c5-sbv2-rsa3072
-export MICROTUN_BOOT_ESP_BOARD=esp32c5-devkitc-1-n8   # match the module's flash
 unset MICROTUN_BOOT_PUBKEYS MICROTUN_SIGNER_EXPECTED_PUBLIC_KEY  # no pinned dev key, no key override
 
-(cd boards/esp32c5-devkitc-1/microtun-boot && NO_FLASH=1 cargo run --release)
+(cd boards/esp32c5-mini/microtun-boot && NO_FLASH=1 cargo run --release)
 
-cd examples/esp32c5-devkitc-1-blinky
-MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp flash-bootloader --signed-bin \
+cd examples/esp32c5-mini-blinky
+MICROTUN_BOOT_OTP_BURN=YES microtun-boot-tools-esp --board esp32c5-mini \
+  flash-bootloader --signed-bin \
   ../../target/riscv32imac-unknown-none-elf/release/boot-chain.sbv2.bin
 cargo run --release
 ```
@@ -154,4 +145,4 @@ Compare the digest with the published fingerprints in
 Copy this example and keep its `build.rs`, the `esp_app_desc!()` call (the
 ESP-IDF application descriptor microtun boot's image conversion expects), the
 watchdog task and the confirm-after-self-test logic. The full checklist is in
-the [board README](../../boards/esp32c5-devkitc-1/README.md#writing-an-application).
+the [board README](../../boards/esp32c5-mini/README.md#writing-an-application).
