@@ -45,21 +45,6 @@ Local keys are unencrypted: **never ship anything signed with them.** A board wh
 
 When `MICROTUN_BOOT_PUBKEYS` is unset, bootloader builds embed the public key of the application key, `MICROTUN_BOOT_KEY_ID`, `MICROTUN_SIGNER_KEY_ID` or `microtun-boot-local-p256`, from the local store (via `microtun-signer local path`). If `MICROTUN_SIGNER_URL` names a signer service instead, the build stops: set `MICROTUN_BOOT_PUBKEYS` to that key's pinned public key (see below). A build never trusts a key just because a service returned it.
 
-### Migrating from `keys/`
-
-Earlier versions kept development keys as PEM files under `keys/` and `boards/*/keys/`, selected with the paths `MICROTUN_BOOT_KEY`, `ESP_SBV2_KEY`, `RP2350_SECURE_BOOT_KEY` or `--key`. Those settings are gone; their key-ID counterparts are `MICROTUN_BOOT_KEY_ID`, `ESP_SBV2_KEY_ID` and `RP2350_SECURE_BOOT_KEY_ID`. To keep signing with existing keys (for example for a board already provisioned with them), import them into the local store **before** generating new ones with `microtun-signer local init`:
-
-```sh
-microtun-signer local import --key-id microtun-boot-local-p256 --algorithm p256 \
-    --pem keys/dev-p256.pem
-microtun-signer local import --key-id microtun-boot-local-esp32c3-sbv2-rsa3072 --algorithm rsa-pss \
-    --pem boards/esp32-c3-mini-1/keys/dev-esp32c3-sbv2-rsa3072.pem
-microtun-signer local import --key-id microtun-boot-local-rp2350-rom-secp256k1 --algorithm secp256k1 \
-    --pem boards/rp2350-pico2/keys/dev-rp2350-rom-secp256k1.pem
-```
-
-The PEM files are copied, not moved; delete them once the import is done. A key kept elsewhere imports the same way, under any ID; point the matching `*_KEY_ID` variable at it.
-
 ## Select a signer service
 
 Install the `microtun-signer` command-line client and configure access to the service (for example, a `MICROTUN_SIGNER_TOKEN` bearer token for GitHub Actions). Export:
