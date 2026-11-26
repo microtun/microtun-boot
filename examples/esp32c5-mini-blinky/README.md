@@ -9,7 +9,7 @@ The C5 Mini uses microtun boot's
 [`esp32-c5-mini-1`](../../boards/esp32-c5-mini-1/README.md) board target; see
 [compatible development boards](../../boards/README-ESP32.md#compatible-development-boards).
 
-- Blinks the user LED (GPIO23): **fast** while the image is an unconfirmed
+- Blinks the user LED (GPIO23, active low): **fast** while the image is an unconfirmed
   trial, a slow heartbeat once it is permanent.
 - The **BOOT button** (GPIO28) logs what microtun boot handed over: mode,
   slot, maximum image size and bootloader version.

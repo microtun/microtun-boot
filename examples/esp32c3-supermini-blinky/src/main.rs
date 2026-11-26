@@ -36,6 +36,9 @@ static CONFIRMED: AtomicBool = AtomicBool::new(false);
 /// How long the application must run healthily before it confirms itself.
 const SELF_TEST: Duration = Duration::from_secs(5);
 
+/// The SuperMini blue LED on GPIO8 is active low.
+const LED_ON: Level = Level::Low;
+
 #[embassy_executor::task]
 async fn watchdog(mut wdt: Rwdt) -> ! {
     loop {
@@ -52,9 +55,9 @@ async fn blink(mut led: Output<'static>) -> ! {
         } else {
             Duration::from_millis(150)
         };
-        led.set_low(); // on
+        led.set_level(LED_ON);
         Timer::after(Duration::from_millis(50)).await;
-        led.set_high(); // off
+        led.set_level(!LED_ON);
         Timer::after(period).await;
     }
 }
@@ -98,7 +101,7 @@ async fn main(spawner: Spawner) {
         }
     };
 
-    let led = Output::new(p.GPIO8, Level::High, OutputConfig::default());
+    let led = Output::new(p.GPIO8, !LED_ON, OutputConfig::default());
     let boot_button = Input::new(p.GPIO9, InputConfig::default().with_pull(Pull::Up));
     spawner.spawn(blink(led).expect("spawn blink"));
     spawner.spawn(button(boot_button, boot).expect("spawn button"));

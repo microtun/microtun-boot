@@ -222,8 +222,8 @@ USB-Serial-JTAG wiring, so they use the matching target unchanged:
 | Development board | Target | Notes |
 |---|---|---|
 | [ESP32-C3 SuperMini](https://makergo.cc/product/esp32-c3-supermini-development-board/) ([wiki](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c3mini)) | `esp32-c3-mini-1` | Blue LED on GPIO8 (active low), BOOT button on GPIO9 |
-| NiceMCU [ESP32-C5 Mini](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c5mini) | `esp32-c5-mini-1` | User LED on GPIO23, BOOT button on GPIO28; UART0 on the header's `TX`/`RX` |
-| [ESP32-C6 SuperMini](https://makergo.cc/product/esp32-c6-supermini-development-board/) ([wiki](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c6mini)) | `esp32-c6-mini-1` | WS2812 RGB LED on GPIO8, BOOT button on GPIO9 |
+| NiceMCU [ESP32-C5 Mini](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c5mini) | `esp32-c5-mini-1` | User LED on GPIO23 (active low), BOOT button on GPIO28; UART0 on the header's `TX`/`RX` |
+| [ESP32-C6 SuperMini](https://makergo.cc/product/esp32-c6-supermini-development-board/) ([wiki](https://wiki.icbbuy.com/doku.php?id=developmentboard:esp32-c6mini)) | `esp32-c6-mini-1` | WS2812 RGB LED on GPIO8, separate status LED on GPIO15 (active high), BOOT button on GPIO9 |
 
 The ESP32 [blinky examples](../examples/README.md) are written for these
 boards and use their LED and button pins. "SuperMini" boards come

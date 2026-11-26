@@ -2,9 +2,9 @@
 #![no_main]
 //! ESP32-C5 Mini + microtun boot + Embassy example.
 //!
-//! * Blinks the on-board user LED (GPIO23). The blink pattern shows the boot
-//!   state: fast while a trial (test) image is still unconfirmed, slow once
-//!   the image is permanent.
+//! * Blinks the on-board user LED (GPIO23, active low). The blink pattern
+//!   shows the boot state: fast while a trial (test) image is still
+//!   unconfirmed, slow once the image is permanent.
 //! * Pressing the BOOT button (GPIO28) prints the microtun boot handoff info.
 //! * After a short self-test the running image confirms itself, so a swap
 //!   upgrade is kept instead of being reverted on the next reset.
@@ -36,9 +36,8 @@ static CONFIRMED: AtomicBool = AtomicBool::new(false);
 /// How long the application must run healthily before it confirms itself.
 const SELF_TEST: Duration = Duration::from_secs(5);
 
-/// Level that lights the user LED on GPIO23. Flip it if the LED on your board
-/// is wired to 3.3 V (active low): the heartbeat then shows as short gaps.
-const LED_ON: Level = Level::High;
+/// The NiceMCU ESP32-C5 Mini user LED on GPIO23 is active low.
+const LED_ON: Level = Level::Low;
 
 #[embassy_executor::task]
 async fn watchdog(mut wdt: Rwdt) -> ! {

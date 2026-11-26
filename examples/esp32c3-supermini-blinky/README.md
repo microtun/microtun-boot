@@ -9,7 +9,7 @@ The SuperMini uses microtun boot's
 [`esp32-c3-mini-1`](../../boards/esp32-c3-mini-1/README.md) board target; see
 [compatible development boards](../../boards/README-ESP32.md#compatible-development-boards).
 
-- Blinks the blue LED (GPIO8): **fast** while the image is an unconfirmed
+- Blinks the blue LED (GPIO8, active low): **fast** while the image is an unconfirmed
   trial, **slow** once it is permanent.
 - The **BOOT button** logs what microtun boot handed over: mode, slot, maximum
   image size and bootloader version.

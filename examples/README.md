@@ -15,8 +15,8 @@ differ:
 
 | Example | Board (target) | LED | Rust target |
 |---|---|---|---|
-| [esp32c3-supermini-blinky](esp32c3-supermini-blinky/README.md) | ESP32-C3 SuperMini ([`esp32-c3-mini-1`](../boards/esp32-c3-mini-1/README.md)) | blue LED, GPIO8 | `riscv32imc-unknown-none-elf` |
-| [esp32c5-mini-blinky](esp32c5-mini-blinky/README.md) | ESP32-C5 Mini ([`esp32-c5-mini-1`](../boards/esp32-c5-mini-1/README.md)) | user LED, GPIO23 | `riscv32imac-unknown-none-elf` |
+| [esp32c3-supermini-blinky](esp32c3-supermini-blinky/README.md) | ESP32-C3 SuperMini ([`esp32-c3-mini-1`](../boards/esp32-c3-mini-1/README.md)) | blue LED, GPIO8 (active low) | `riscv32imc-unknown-none-elf` |
+| [esp32c5-mini-blinky](esp32c5-mini-blinky/README.md) | ESP32-C5 Mini ([`esp32-c5-mini-1`](../boards/esp32-c5-mini-1/README.md)) | user LED, GPIO23 (active low) | `riscv32imac-unknown-none-elf` |
 | [esp32c6-supermini-blinky](esp32c6-supermini-blinky/README.md) | ESP32-C6 SuperMini ([`esp32-c6-mini-1`](../boards/esp32-c6-mini-1/README.md)) | RGB LED, GPIO8 (RMT): amber trial, green permanent | `riscv32imac-unknown-none-elf` |
 | [rp2350-pico2-blinky](rp2350-pico2-blinky/README.md) | [RP2350 Pico 2 / Pico 2 W](../boards/rp2350-pico2/README.md) | on-board LED | `thumbv8m.main-none-eabihf` |
 

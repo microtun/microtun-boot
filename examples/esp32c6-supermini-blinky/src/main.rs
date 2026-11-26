@@ -48,7 +48,9 @@ const OFF: Rgb = Rgb(0, 0, 0);
 #[derive(Clone, Copy)]
 struct Rgb(u8, u8, u8);
 
-/// Minimal driver for the board's single WS2812-type LED.
+/// Minimal driver for the board's single WS2812-type LED on GPIO8.
+/// This is not the separate active-high status LED on GPIO15.
+/// The RGB LED is switched off by sending zero for all colour channels.
 ///
 /// The RMT runs at 80 MHz (12.5 ns per tick). Each colour bit is one RMT
 /// pulse code: a `1` is 0.8 µs high then 0.45 µs low, a `0` is 0.4 µs high

@@ -11,7 +11,9 @@ The SuperMini uses microtun boot's
 
 - Flashes the addressable RGB LED (GPIO8, driven through the RMT
   peripheral): fast **amber** while the image is an unconfirmed trial, a slow
-  **green** heartbeat once it is permanent.
+  **green** heartbeat once it is permanent. The separate active-high status
+  LED on GPIO15 is not used by this example; the RGB LED is switched off by
+  sending zero for all three colour channels.
 - The **BOOT button** (GPIO9) logs what microtun boot handed over: mode, slot,
   maximum image size and bootloader version.
 - **Confirms** itself after a 5 s self-test. If it resets or panics before
